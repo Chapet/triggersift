@@ -1,0 +1,83 @@
+# ASMR trigger taxonomy. `sound` = lowercase noun/verb phrase, used as the SAM Audio text prompt.
+# Draft, to refine on real videos.
+tapping:
+  label: Tapping
+  subs:
+    nail_tapping: {label: Fingernail tapping, sound: fingernails tapping}
+    finger_tapping: {label: Fingertip tapping, sound: fingertips tapping}
+    wood: {label: Tapping on wood, sound: tapping on wood}
+    glass: {label: Tapping on glass, sound: tapping on glass}
+    plastic: {label: Tapping on plastic, sound: tapping on plastic}
+    metal: {label: Tapping on metal, sound: tapping on metal}
+    leather: {label: Tapping on leather, sound: tapping on leather}
+    cardboard: {label: Tapping on cardboard or books, sound: tapping on cardboard}
+    mic: {label: Tapping on the microphone, sound: tapping on a microphone}
+scratching:
+  label: Scratching
+  subs:
+    fabric: {label: Scratching fabric, sound: scratching fabric}
+    mic_cover: {label: Scratching the mic cover, sound: scratching a microphone cover}
+    hard_surface: {label: Scratching a hard surface, sound: nails scratching a hard surface}
+    foam: {label: Scratching foam, sound: scratching foam}
+crinkling:
+  label: Crinkling
+  subs:
+    plastic_bag: {label: Plastic bag, sound: crinkling plastic bag}
+    foil: {label: Aluminium foil, sound: crinkling foil}
+    wrapper: {label: Wrapper / cellophane, sound: crinkling wrapper}
+    paper: {label: Paper, sound: crumpling paper}
+mouth:
+  label: Mouth sounds
+  subs:
+    wet_mouth: {label: Wet mouth sounds, sound: wet mouth sounds}
+    tongue_click: {label: Tongue clicking, sound: tongue clicking}
+    kissing: {label: Kisses, sound: kissing sounds}
+    lip_smack: {label: Lip smacking, sound: lip smacking}
+    eating: {label: Eating / chewing, sound: chewing food}
+    breathing: {label: Breathing / blowing, sound: breathing into a microphone}
+voice:
+  label: Voice
+  subs:
+    whisper: {label: Whispering, sound: whispering}
+    unintelligible: {label: Inaudible whispering, sound: unintelligible whispering}
+    soft_spoken: {label: Soft speaking, sound: woman speaking softly}
+    humming: {label: Humming, sound: humming}
+brushing:
+  label: Brushing
+  subs:
+    mic_brushing: {label: Brushing the microphone, sound: brushing a microphone}
+    lens_brushing: {label: Brushing the lens, sound: soft brush strokes}
+    hair: {label: Hair brushing, sound: brushing hair}
+liquid:
+  label: Liquids & textures
+  subs:
+    water: {label: Water pouring / splashing, sound: water pouring}
+    slime: {label: Slime / squishing, sound: squishing slime}
+    lotion: {label: Lotion / gel, sound: squishing lotion}
+    bubbles: {label: Bubbles / fizzing, sound: fizzing bubbles}
+mic_texture:
+  label: Mic textures
+  subs:
+    fluffy: {label: Fluffy mic cover rubbing, sound: rubbing a fluffy microphone cover}
+    foam_squeeze: {label: Foam squeezing, sound: squeezing foam}
+    mic_rubbing: {label: Rubbing the microphone, sound: rubbing a microphone}
+clicking:
+  label: Clicking & typing
+  subs:
+    keyboard: {label: Keyboard typing, sound: keyboard typing}
+    mouse: {label: Mouse clicks, sound: mouse clicking}
+    pen: {label: Pen clicking / writing, sound: pen clicking}
+    nails_clicking: {label: Nail clicking, sound: fingernails clicking}
+cutting:
+  label: Cutting & crunching
+  subs:
+    scissors: {label: Scissors / hair cutting, sound: scissors cutting}
+    kinetic_sand: {label: Kinetic sand, sound: cutting kinetic sand}
+    soap: {label: Soap cutting, sound: cutting soap}
+    crunching: {label: Crunching (ice, crispy food), sound: crunching}
+ambient:
+  label: Ambient
+  subs:
+    rain: {label: Rain, sound: rain}
+    fire: {label: Fire crackling, sound: fire crackling}
+    music: {label: Background music, sound: background music}
