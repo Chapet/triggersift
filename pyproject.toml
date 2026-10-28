@@ -22,3 +22,27 @@ sift-server = "triggersift.server:main"
 [build-system]
 requires = ["uv_build>=0.12.22,<0.13.0"]
 build-backend = "uv_build"
+
+[project.optional-dependencies]
+# local GPU models (PE-A-Frame, later SAM Audio): uv sync --extra local
+local = [
+    "torch>=2.7",
+    "torchvision",
+    "einops",
+    "timm",
+    "ftfy",
+    "regex",
+    "transformers",
+    "safetensors",
+    "huggingface_hub",
+    "numpy",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }

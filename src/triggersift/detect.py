@@ -1,4 +1,4 @@
-"""Detect ASMR triggers in a video with Muse Spark, chunk by chunk (audio only for now)."""
+"""Detect ASMR triggers in a video, chunk by chunk, with a choice of detector (see DETECTORS)."""
 
 import base64
 import hashlib
@@ -97,23 +97,48 @@ Trigger ids:
 {lines}"""
 
 
-def detect_chunk(path: Path, start: float, length: float, model: str) -> tuple[list[Event], dict]:
-    audio = base64.b64encode(audio_chunk(path, start, length)).decode()
-    frame_times = [length * (k + 0.5) / FRAMES_PER_CHUNK for k in range(FRAMES_PER_CHUNK)]
-    content = [{"type": "input_text", "text": _prompt(length, frame_times)}]
-    content += [{"type": "input_image",
-                 "image_url": "data:image/jpeg;base64," + base64.b64encode(frame(path, start + t)).decode()}
-                for t in frame_times]
-    content.append({"type": "input_audio", "input_audio": {"data": audio, "format": "mp3"}})
-    out, stats = respond_json(model, content, _schema(), "asmr_triggers")
+def frame_times(length: float) -> list[float]:
+    return [length * (k + 0.5) / FRAMES_PER_CHUNK for k in range(FRAMES_PER_CHUNK)]
+
+
+def to_events(out: dict, start: float, length: float) -> list[Event]:
+    """LLM JSON output (times relative to the chunk) → events in video time."""
     events = []
     for e in out["events"]:
         s, t = max(0.0, e["start"]), min(length, e["end"])
-        if t <= s:
-            continue
-        events.append(Event(round(start + s, 2), round(start + t, 2), e["trigger"],
-                            e["confidence"], e["note"]))
-    return events, stats
+        if t > s:
+            events.append(Event(round(start + s, 2), round(start + t, 2), e["trigger"], e["confidence"], e["note"]))
+    return events
+
+
+def _muse_chunk(path: Path, start: float, length: float, model: str) -> tuple[list[Event], dict]:
+    audio = base64.b64encode(audio_chunk(path, start, length)).decode()
+    times = frame_times(length)
+    content = [{"type": "input_text", "text": _prompt(length, times)}]
+    content += [{"type": "input_image",
+                 "image_url": "data:image/jpeg;base64," + base64.b64encode(frame(path, start + t)).decode()}
+                for t in times]
+    content.append({"type": "input_audio", "input_audio": {"data": audio, "format": "mp3"}})
+    out, stats = respond_json(model, content, _schema(), "asmr_triggers")
+    return to_events(out, start, length), stats
+
+
+# id → (label for the UI, where it runs)
+DETECTORS = {
+    "muse-wonder-1.0": ("Muse Wonder · Meta API · ~$0.07/min", "api"),
+    "pe-a-frame-large": ("PE-A-Frame · Meta, local GPU · free", "local"),
+    "gemini": ("Gemini · Google API", "api"),
+}
+
+
+def detect_chunk(path: Path, start: float, length: float, model: str) -> tuple[list[Event], dict]:
+    if model.startswith("pe-a-frame"):
+        from . import pe_frame  # torch: only loaded when this detector is used
+        return pe_frame.detect_chunk(path, start, length)
+    if model.startswith("gemini"):
+        from . import gemini
+        return gemini.detect_chunk(path, start, length)
+    return _muse_chunk(path, start, length, model)
 
 
 _ID_CACHE: dict[tuple, str] = {}

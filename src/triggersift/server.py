@@ -15,7 +15,7 @@ import uvicorn
 from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
-from .detect import Chunk, analyze_chunk, cached_chunk, chunks, duration, run_dir
+from .detect import DEFAULT_MODEL, DETECTORS, Chunk, analyze_chunk, cached_chunk, chunks, duration, run_dir
 from .labeling import make_routes
 from .plan import plan
 from .profile import Pref, Profile, category_labels, taxonomy
@@ -48,11 +48,13 @@ class Analysis:
     """Analyzes the chunks of one video with a few workers, always picking the next missing chunk at or after
     the playhead (then wrapping around), so results stay ahead of what is being watched."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, model: str):
         self.path = path
+        self.model = model
+        self.workers = 1 if DETECTORS[model][1] == "local" else WORKERS  # one GPU: chunks go one at a time
         self.duration = duration(path)
         self.chunks = chunks(self.duration)
-        self.run = run_dir(path)
+        self.run = run_dir(path, model)
         self.events: dict[int, list] = {}
         self.errors: dict[int, str] = {}
         self.busy: set[int] = set()
@@ -66,7 +68,7 @@ class Analysis:
     def start(self, focus: float) -> None:
         with self.lock:
             self.focus = focus
-            want = min(WORKERS, len(self._missing())) - self.running
+            want = min(self.workers, len(self._missing())) - self.running
             self.running += max(0, want)
         for _ in range(max(0, want)):
             threading.Thread(target=self._work, daemon=True).start()
@@ -90,7 +92,7 @@ class Analysis:
     def _work(self) -> None:
         while (c := self._next()) is not None:
             try:
-                evs = analyze_chunk(self.run, self.path, c)
+                evs = analyze_chunk(self.run, self.path, c, self.model)
                 with self.lock:
                     self.events[c.index] = evs
             except Exception as e:  # keep the other chunks going; the UI shows failed chunks
@@ -101,7 +103,7 @@ class Analysis:
                 with self.lock:
                     self.busy.discard(c.index)
 
-    def state(self) -> dict:
+    def state(self, can_filter: bool) -> dict:
         with self.lock:
             events = sorted((e for evs in self.events.values() for e in evs), key=lambda e: e.start)
             done = sorted(self.events)
@@ -114,19 +116,45 @@ class Analysis:
                         else "error" if c.index in errors else "todo"} for c in self.chunks],
             "events": [asdict(e) for e in events],
             # the player mutes "filter" steps until SAM Audio is in
-            "plan": [asdict(s) for s in plan(events, _profile())],
+            "plan": [asdict(s) for s in plan(events, _profile(), can_filter=can_filter)],
         }
 
 
-_analyses: dict[str, Analysis] = {}
+_analyses: dict[tuple[str, str], Analysis] = {}
 _analyses_lock = threading.Lock()
 
 
-def _analysis(vid: str) -> Analysis:
+def _analysis(vid: str, model: str) -> Analysis:
+    if model not in DETECTORS:
+        raise HTTPException(400, f"unknown detector {model}")
     with _analyses_lock:
-        if vid not in _analyses:
-            _analyses[vid] = Analysis(_video(vid))
-        return _analyses[vid]
+        if (vid, model) not in _analyses:
+            _analyses[(vid, model)] = Analysis(_video(vid), model)
+        return _analyses[(vid, model)]
+
+
+def _detector_status(model: str) -> str | None:
+    """None if usable, else why not."""
+    if model == "gemini":
+        from .gemini import api_key
+        return None if api_key() else "needs GEMINI_API_KEY in ~/Projects/triggersift/.env"
+    if DETECTORS[model][1] == "local":
+        import importlib.util
+        return None if importlib.util.find_spec("torch") else "needs: uv sync --extra local"
+    return None
+
+
+@app.get("/api/detectors")
+def detectors():
+    return [{"id": m, "label": label, "default": m == DEFAULT_MODEL, "unavailable": _detector_status(m)}
+            for m, (label, _) in DETECTORS.items()]
+
+
+@app.get("/api/removers")
+def removers():
+    return [{"id": "mute", "label": "Mute (soft fade)", "unavailable": None},
+            {"id": "sam-audio", "label": "SAM Audio · Meta, local GPU",
+             "unavailable": "waiting for Hugging Face access to facebook/sam-audio-large-tv"}]
 
 
 app.include_router(make_routes(_video))
@@ -141,7 +169,7 @@ def index():
 def videos():
     out = []
     for vid, p in _videos().items():
-        a = _analyses.get(vid)
+        a = _analyses.get((vid, DEFAULT_MODEL))
         out.append({"id": vid, "name": p.stem, "analyzed": len(a.events) if a else None,
                     "chunks": len(a.chunks) if a else None})
     return out
@@ -153,15 +181,17 @@ def media(vid: str):
 
 
 @app.post("/api/videos/{vid}/analyze")
-def analyze(vid: str, focus: float = 0.0):
-    a = _analysis(vid)
+def analyze(vid: str, focus: float = 0.0, model: str = DEFAULT_MODEL):
+    if reason := _detector_status(model):
+        raise HTTPException(400, reason)
+    a = _analysis(vid, model)
     a.start(focus)
     return {"ok": True}
 
 
 @app.get("/api/videos/{vid}/state")
-def state(vid: str):
-    return _analysis(vid).state()
+def state(vid: str, model: str = DEFAULT_MODEL, remover: str = "mute"):
+    return _analysis(vid, model).state(can_filter=remover == "sam-audio")
 
 
 @app.get("/api/taxonomy")

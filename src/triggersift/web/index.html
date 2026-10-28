@@ -17,6 +17,9 @@
   select, button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
     padding: 6px 10px; font: inherit; cursor: pointer; }
   select { max-width: 50vw; }
+  label.opt { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
+  label.opt select { max-width: 260px; }
+  .err { color: var(--skip); }
   .sift-toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; }
   .sift-toggle button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px 20px; }
@@ -72,6 +75,8 @@
 <header>
   <h1>Trigger<span>Sift</span></h1>
   <select id="pick"><option value="">Choose a video…</option></select>
+  <label class="opt">Detection <select id="detector"></select></label>
+  <label class="opt">Removal <select id="remover"></select></label>
   <div class="sift-toggle">Sifting <button id="sift" class="on">ON</button></div>
 </header>
 <main>
@@ -97,6 +102,7 @@ const v = $('#v');
 const COLORS = ['#8e7cf0', '#4cc38a', '#f5a524', '#3e9bf0', '#e5484d', '#d864d8', '#2ec4c4', '#c9b458',
                 '#f0743e', '#7fb0ff', '#a3e635', '#f472b6', '#94a3b8', '#fb923c', '#22d3ee'];
 let taxonomy = {}, profile = {}, vid = null, st = null, sift = true, poll = null;
+let detector = null, remover = 'mute';
 let overrideSkip = null;          // key of a skip the user seeked into on purpose: let it play
 let audio = null;                 // {ctx, gain}
 
@@ -114,6 +120,9 @@ async function api(path, opts) {
 // ---------- video choice + analysis ----------
 async function init() {
   [taxonomy, profile] = await Promise.all([api('/api/taxonomy'), api('/api/profile')]);
+  await fillOptions('#detector', '/api/detectors', 'detector', x => x.default);
+  await fillOptions('#remover', '/api/removers', 'remover', x => x.id === 'mute');
+  detector = $('#detector').value; remover = $('#remover').value;
   for (const x of await api('/api/videos')) $('#pick').add(new Option(x.name, x.id));
   const last = localStorageGet('vid');
   if (last && [...$('#pick').options].some(o => o.value === last)) { $('#pick').value = last; choose(last); }
@@ -134,11 +143,32 @@ async function choose(id) {
   poll = setInterval(refresh, 2000);
 }
 
-async function kick(focus) { if (vid) await api(`/api/videos/${vid}/analyze?focus=${focus}`, {method: 'POST'}); }
+async function kick(focus) {
+  if (!vid) return;
+  try { await api(`/api/videos/${vid}/analyze?focus=${focus}&model=${detector}`, {method: 'POST'}); }
+  catch (e) { $('#progress').innerHTML = `<span class="err">${e.message}</span>`; }
+}
+
+async function fillOptions(sel, url, key, isDefault) {
+  const items = await api(url), saved = localStorageGet(key);
+  for (const x of items) {
+    const o = new Option(x.label + (x.unavailable ? ` (${x.unavailable})` : ''), x.id);
+    o.disabled = !!x.unavailable;
+    $(sel).add(o);
+  }
+  const ok = items.filter(x => !x.unavailable);
+  $(sel).value = (ok.find(x => x.id === saved) || ok.find(isDefault) || ok[0])?.id;
+}
+
+$('#detector').onchange = async e => {
+  detector = e.target.value; localStorageSet('detector', detector);
+  st = null; await kick(v.currentTime); await refresh(); clearInterval(poll); poll = setInterval(refresh, 2000);
+};
+$('#remover').onchange = async e => { remover = e.target.value; localStorageSet('remover', remover); await refresh(); };
 
 async function refresh() {
   if (!vid) return;
-  st = await api(`/api/videos/${vid}/state`);
+  st = await api(`/api/videos/${vid}/state?model=${detector}&remover=${remover}`);
   renderTimeline(); renderProfile(); renderStatus();
   if (st.chunks.every(c => c.status === 'done' || c.status === 'error')) clearInterval(poll);
 }
