@@ -77,12 +77,12 @@
       <button id="setOut" title="]">End ]</button>
       <button data-nudge="out,-0.1">−0.1</button><span class="t" id="tOut">–</span><button data-nudge="out,0.1">+0.1</button>
       <span id="len" class="t"></span>
-      <button id="new5" title="N">New 5 s clip here (N)</button>
+      <button id="new5" title="N">5 s clip here (N)</button>
       <button id="loop" title="L">Loop (L)</button>
     </div>
     <div class="keys">
       <kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> 1 s (<kbd>Shift</kbd> 5 s) · <kbd>[</kbd> <kbd>]</kbd> start/end at playhead ·
-      <kbd>N</kbd> new 5 s clip · <kbd>L</kbd> loop selection · <kbd>/</kbd> search triggers · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> save
+      <kbd>N</kbd> 5 s clip at the playhead (moves the current one) · <kbd>D</kbd> discard · <kbd>L</kbd> loop selection · <kbd>/</kbd> search triggers · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> save
     </div>
     <div class="saved">
       <h2>Clips from this video</h2>
@@ -99,7 +99,7 @@
     <div class="row">
       <label><input type="checkbox" id="unsure"> Unsure</label>
       <span style="flex:1"></span>
-      <button id="clear">Clear</button>
+      <button id="discard" title="D">Discard (D)</button>
       <button id="save" class="primary">Save clip</button>
     </div>
     <div class="msg" id="msg"></div>
@@ -165,7 +165,12 @@ function renderSel() {
 }
 $('#setIn').onclick = () => setSel(v.currentTime, sel?.out ?? v.currentTime + 5);
 $('#setOut').onclick = () => setSel(sel?.in ?? Math.max(0, v.currentTime - 5), v.currentTime);
-$('#new5').onclick = () => { editing = null; setSel(v.currentTime, v.currentTime + 5); v.currentTime = sel.in; };
+// N: with a clip in progress, move it to the playhead (labels kept; when editing a saved clip, saving replaces it)
+$('#new5').onclick = () => {
+  const moved = !!sel;
+  setSel(v.currentTime, v.currentTime + 5); v.currentTime = sel.in;
+  if (moved) msg(`Clip moved to ${fmt(sel.in)}–${fmt(sel.out)}.`);
+};
 document.querySelectorAll('[data-nudge]').forEach(b => b.onclick = () => {
   if (!sel) return;
   const [k, d] = b.dataset.nudge.split(','); sel[k] = Math.max(0, sel[k] + Number(d));
@@ -263,7 +268,14 @@ function clearForm() {
   chosen = []; main = null; editing = null; $('#note').value = ''; $('#unsure').checked = false;
   renderChosen(); renderList();
 }
-$('#clear').onclick = clearForm;
+// D: drop the clip in progress (selection, labels, note). A saved clip being edited stays as it was saved.
+function discard() {
+  const wasEditing = editing;
+  clearForm(); sel = null; renderSel();
+  if (loop) $('#loop').click();
+  msg(wasEditing ? 'Changes discarded; the saved clip is unchanged.' : 'Clip discarded.');
+}
+$('#discard').onclick = discard;
 
 async function save() {
   if (!sel) return msg('Set a start and end first (N for a 5 s clip at the playhead).', true);
@@ -317,6 +329,7 @@ document.addEventListener('keydown', e => {
     case '[': $('#setIn').click(); break;
     case ']': $('#setOut').click(); break;
     case 'n': case 'N': $('#new5').click(); break;
+    case 'd': case 'D': discard(); break;
     case 'l': case 'L': $('#loop').click(); break;
     case '/': e.preventDefault(); $('#search').focus(); break;
   }
