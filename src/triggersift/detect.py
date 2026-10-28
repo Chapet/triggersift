@@ -116,41 +116,64 @@ def detect_chunk(path: Path, start: float, length: float, model: str) -> tuple[l
     return events, stats
 
 
+_ID_CACHE: dict[tuple, str] = {}
+
+
 def _file_id(path: Path) -> str:
-    h = hashlib.sha1()
-    with path.open("rb") as f:
-        while block := f.read(1 << 20):
-            h.update(block)
-    return h.hexdigest()[:16]
+    """Content hash (first 16 hex of sha1), memoized per (path, size, mtime): videos are ~1 GB."""
+    st = path.stat()
+    key = (str(path), st.st_size, st.st_mtime)
+    if key not in _ID_CACHE:
+        h = hashlib.sha1()
+        with path.open("rb") as f:
+            while block := f.read(1 << 20):
+                h.update(block)
+        _ID_CACHE[key] = h.hexdigest()[:16]
+    return _ID_CACHE[key]
+
+
+@dataclass
+class Chunk:
+    index: int
+    start: float
+    length: float
+
+
+def chunks(total: float, chunk_s: float = 60.0) -> list[Chunk]:
+    return [Chunk(i, i * chunk_s, min(chunk_s, total - i * chunk_s))
+            for i in range(math.ceil((total - 0.5) / chunk_s))]
+
+
+def run_dir(path: Path, model: str = DEFAULT_MODEL, chunk_s: float = 60.0) -> Path:
+    """Cache folder for one (video, model, chunk length, prompt version): editing the prompt re-runs detection."""
+    version = hashlib.sha1((_prompt(chunk_s, []) + json.dumps(_schema()) + str(FRAMES_PER_CHUNK)).encode()).hexdigest()[:8]
+    run = CACHE / f"{_file_id(path)}-{model}-{chunk_s:g}-{version}"
+    run.mkdir(parents=True, exist_ok=True)
+    return run
+
+
+def cached_chunk(run: Path, c: Chunk) -> list[Event] | None:
+    f = run / f"chunk{c.index:03d}.json"
+    return [Event(**e) for e in json.loads(f.read_text())["events"]] if f.exists() else None
+
+
+def analyze_chunk(run: Path, path: Path, c: Chunk, model: str = DEFAULT_MODEL, log=print) -> list[Event]:
+    """Events of one chunk, from the cache or from Muse."""
+    if (events := cached_chunk(run, c)) is not None:
+        return events
+    events, stats = detect_chunk(path, c.start, c.length, model)
+    data = {"start": c.start, "length": c.length, "stats": stats, "events": [asdict(e) for e in events]}
+    (run / f"chunk{c.index:03d}.json").write_text(json.dumps(data, indent=1))
+    log(f"chunk {c.index} [{c.start:.0f}-{c.start + c.length:.0f}s]: {len(events)} events, "
+        f"{stats['seconds']}s, usage={stats['usage']}")
+    return events
 
 
 def detect(path: Path, model: str = DEFAULT_MODEL, chunk_s: float = 60.0, log=print,
            only: set[int] | None = None, workers: int = 4) -> list[Event]:
-    """All events of a video (or of the chunk indices in `only`), cached per chunk in runs/.
-
-    The cache key includes a hash of the prompt + schema, so editing the taxonomy re-runs detection.
-    """
-    total = duration(path)
-    version = hashlib.sha1((_prompt(chunk_s, []) + json.dumps(_schema()) + str(FRAMES_PER_CHUNK)).encode()).hexdigest()[:8]
-    run = CACHE / f"{_file_id(path)}-{model}-{chunk_s:g}-{version}"
-    run.mkdir(parents=True, exist_ok=True)
-    chunks = [(i, i * chunk_s, min(chunk_s, total - i * chunk_s))
-              for i in range(math.ceil((total - 0.5) / chunk_s))]
-    chunks = [c for c in chunks if only is None or c[0] in only]
-
-    def one(i: int, start: float, length: float) -> list[Event]:
-        cached = run / f"chunk{i:03d}.json"
-        if cached.exists():
-            data = json.loads(cached.read_text())
-        else:
-            chunk_events, stats = detect_chunk(path, start, length, model)
-            data = {"start": start, "length": length, "stats": stats,
-                    "events": [asdict(e) for e in chunk_events]}
-            cached.write_text(json.dumps(data, indent=1))
-            log(f"chunk {i} [{start:.0f}-{start + length:.0f}s]: {len(chunk_events)} events, "
-                f"{stats['seconds']}s, usage={stats['usage']}")
-        return [Event(**e) for e in data["events"]]
-
+    """All events of a video (or of the chunk indices in `only`), cached per chunk in runs/."""
+    run = run_dir(path, model, chunk_s)
+    todo = [c for c in chunks(duration(path), chunk_s) if only is None or c.index in only]
     with ThreadPoolExecutor(workers) as pool:
-        results = list(pool.map(lambda c: one(*c), chunks))
+        results = list(pool.map(lambda c: analyze_chunk(run, path, c, model, log), todo))
     return sorted((e for r in results for e in r), key=lambda e: e.start)

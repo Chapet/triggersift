@@ -1,0 +1,353 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TriggerSift</title>
+<style>
+  :root {
+    --bg: #111317; --panel: #1a1d23; --line: #2a2e36; --text: #e6e6ea; --muted: #8c909a;
+    --skip: #e5484d; --mute: #f5a524; --accent: #8e7cf0; --done: transparent; --todo: #2a2e36;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
+  header h1 span { color: var(--accent); }
+  select, button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 10px; font: inherit; cursor: pointer; }
+  select { max-width: 50vw; }
+  .sift-toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .sift-toggle button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px 20px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .stage { position: relative; }
+  video { width: 100%; max-height: 62vh; background: #000; border-radius: 8px; display: block; }
+  .badge { position: absolute; top: 12px; left: 12px; padding: 6px 10px; border-radius: 6px; font-weight: 600;
+    background: rgba(0,0,0,.7); opacity: 0; transition: opacity .25s; pointer-events: none; }
+  .badge.show { opacity: 1; }
+  .badge.skip { color: var(--skip); } .badge.mute { color: var(--mute); }
+  .status { color: var(--muted); margin: 8px 0 4px; display: flex; gap: 16px; flex-wrap: wrap; }
+  /* timeline */
+  .timeline { position: relative; margin-top: 8px; background: var(--panel); border-radius: 8px; padding: 6px 0;
+    cursor: pointer; user-select: none; }
+  .lane { position: relative; height: 18px; margin: 3px 0 3px 110px; }
+  .lane .name { position: absolute; left: -104px; width: 98px; top: 0; font-size: 12px; color: var(--muted);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .lane .blk { position: absolute; top: 2px; bottom: 2px; border-radius: 2px; min-width: 2px; }
+  .lane.plan { height: 22px; }
+  .lane.plan .blk.skip { background: repeating-linear-gradient(45deg, var(--skip) 0 6px, #a3282c 6px 12px); }
+  .lane.plan .blk.mute, .lane.plan .blk.filter { background: var(--mute); }
+  .lane.chunks .blk { top: 7px; bottom: 7px; }
+  .lane.chunks .blk.todo { background: var(--todo); }
+  .lane.chunks .blk.busy { background: var(--accent); animation: pulse 1.2s infinite; }
+  .lane.chunks .blk.error { background: var(--skip); }
+  @keyframes pulse { 50% { opacity: .35; } }
+  .playhead { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; pointer-events: none; }
+  .tip { position: fixed; z-index: 10; background: #000; border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; font-size: 12px; max-width: 320px; pointer-events: none; display: none; }
+  /* profile */
+  aside { background: var(--panel); border-radius: 8px; padding: 12px; max-height: calc(100vh - 100px); overflow: auto; }
+  aside h2 { font-size: 14px; margin: 0 0 4px; }
+  aside p.hint { color: var(--muted); margin: 0 0 10px; font-size: 12px; }
+  .cat { border-top: 1px solid var(--line); padding: 6px 0; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .row .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .row .lbl { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .row .secs { color: var(--muted); font-size: 12px; }
+  .row .more { background: none; border: none; color: var(--muted); padding: 0 4px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; flex: none; }
+  .seg button { border: none; border-radius: 0; padding: 2px 7px; background: transparent; color: var(--muted); }
+  .seg button.like.on { background: #2f7d4f; color: #fff; }
+  .seg button.neutral.on { background: var(--line); color: var(--text); }
+  .seg button.dislike.on { background: var(--skip); color: #fff; }
+  .subs { margin: 4px 0 2px 18px; display: none; }
+  .cat.open .subs { display: block; }
+  .subs .row { padding: 2px 0; font-size: 13px; }
+  .subs .seg button { padding: 1px 6px; font-size: 12px; }
+  .absent { opacity: .45; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Trigger<span>Sift</span></h1>
+  <select id="pick"><option value="">Choose a video…</option></select>
+  <div class="sift-toggle">Sifting <button id="sift" class="on">ON</button></div>
+</header>
+<main>
+  <section>
+    <div class="stage">
+      <video id="v" controls preload="metadata"></video>
+      <div id="badge" class="badge"></div>
+    </div>
+    <div class="status"><span id="progress"></span><span id="summary"></span></div>
+    <div id="tl" class="timeline"></div>
+  </section>
+  <aside>
+    <h2>Your triggers</h2>
+    <p class="hint">♥ like · – neutral · ✕ dislike. Subcategories override their category.
+      Triggers in this video come first.</p>
+    <div id="prof"></div>
+  </aside>
+</main>
+<div id="tip" class="tip"></div>
+<script>
+const $ = s => document.querySelector(s);
+const v = $('#v');
+const COLORS = ['#8e7cf0', '#4cc38a', '#f5a524', '#3e9bf0', '#e5484d', '#d864d8', '#2ec4c4', '#c9b458',
+                '#f0743e', '#7fb0ff', '#a3e635', '#f472b6', '#94a3b8', '#fb923c', '#22d3ee'];
+let taxonomy = {}, profile = {}, vid = null, st = null, sift = true, poll = null;
+let overrideSkip = null;          // key of a skip the user seeked into on purpose: let it play
+let audio = null;                 // {ctx, gain}
+
+const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+const catOf = id => id.split('.')[0];
+const catColor = c => COLORS[Object.keys(taxonomy).indexOf(c) % COLORS.length] || '#888';
+const prefOf = id => profile[id] || profile[catOf(id)] || 'neutral';
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.json();
+}
+
+// ---------- video choice + analysis ----------
+async function init() {
+  [taxonomy, profile] = await Promise.all([api('/api/taxonomy'), api('/api/profile')]);
+  for (const x of await api('/api/videos')) $('#pick').add(new Option(x.name, x.id));
+  const last = localStorageGet('vid');
+  if (last && [...$('#pick').options].some(o => o.value === last)) { $('#pick').value = last; choose(last); }
+  renderProfile();
+}
+
+function localStorageGet(k) { try { return localStorage.getItem(k); } catch { return null; } }
+function localStorageSet(k, x) { try { localStorage.setItem(k, x); } catch {} }
+
+async function choose(id) {
+  vid = id; st = null; overrideSkip = null;
+  localStorageSet('vid', id);
+  if (!id) return;
+  v.src = `/api/videos/${id}/media`;
+  await kick(0);
+  await refresh();
+  clearInterval(poll);
+  poll = setInterval(refresh, 2000);
+}
+
+async function kick(focus) { if (vid) await api(`/api/videos/${vid}/analyze?focus=${focus}`, {method: 'POST'}); }
+
+async function refresh() {
+  if (!vid) return;
+  st = await api(`/api/videos/${vid}/state`);
+  renderTimeline(); renderProfile(); renderStatus();
+  if (st.chunks.every(c => c.status === 'done' || c.status === 'error')) clearInterval(poll);
+}
+
+$('#pick').onchange = e => choose(e.target.value);
+v.addEventListener('play', () => { ensureAudio(); kick(v.currentTime); });
+v.addEventListener('seeked', () => kick(v.currentTime));
+
+// ---------- sifting: skip + mute, checked every frame ----------
+function ensureAudio() {
+  if (audio) { audio.ctx.resume(); return; }
+  const ctx = new AudioContext();
+  const gain = ctx.createGain();
+  ctx.createMediaElementSource(v).connect(gain).connect(ctx.destination);
+  audio = {ctx, gain};
+}
+
+const stepKey = s => `${s.start}-${s.end}`;
+
+function stepAt(t, kinds) {
+  return st?.plan.find(s => kinds.includes(s.action) && t >= s.start && t < s.end);
+}
+
+function tick() {
+  if (st && sift && !v.paused) {
+    const t = v.currentTime;
+    const skip = stepAt(t, ['skip']);
+    if (skip && stepKey(skip) !== overrideSkip && skip.end - t > 0.3) {
+      v.currentTime = skip.end;
+      flash(`Skipped ${fmt(skip.end - skip.start)} · ${names(skip.triggers)}`, 'skip');
+    }
+    const mute = stepAt(t + 0.05, ['mute', 'filter']);
+    setGain(mute ? 0 : 1);
+    if (mute) flash(`Muting ${names(mute.triggers)}`, 'mute', true);
+  } else setGain(1);
+  if (st) movePlayhead();
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+let gainTarget = 1;
+function setGain(x) {
+  if (!audio || x === gainTarget) return;
+  gainTarget = x;
+  audio.gain.gain.setTargetAtTime(x, audio.ctx.currentTime, 0.03);
+}
+
+let badgeTimer = null;
+function flash(text, kind, sticky) {
+  const b = $('#badge');
+  b.textContent = text; b.className = `badge show ${kind}`;
+  clearTimeout(badgeTimer);
+  badgeTimer = setTimeout(() => b.classList.remove('show'), sticky ? 400 : 2500);
+}
+
+function names(ids) {
+  return [...new Set(ids)].map(id => taxonomy[catOf(id)]?.subs[id] || id).join(', ');
+}
+
+$('#sift').onclick = () => {
+  sift = !sift;
+  $('#sift').textContent = sift ? 'ON' : 'OFF';
+  $('#sift').classList.toggle('on', sift);
+};
+
+// ---------- timeline ----------
+function renderTimeline() {
+  const tl = $('#tl'), D = st.duration;
+  const pct = x => `${(x / D) * 100}%`;
+  const lane = (cls, name) => {
+    const el = document.createElement('div');
+    el.className = `lane ${cls}`;
+    el.innerHTML = `<div class="name">${name}</div>`;
+    return el;
+  };
+  const blk = (el, s, e, cls, color, tip) => {
+    const b = document.createElement('div');
+    b.className = `blk ${cls}`;
+    b.style.left = pct(s); b.style.width = pct(Math.max(e - s, D / 1000));
+    if (color) b.style.background = color;
+    if (tip) b.dataset.tip = tip;
+    el.appendChild(b);
+  };
+  tl.replaceChildren();
+  const chunksLane = lane('chunks', 'analysis');
+  for (const c of st.chunks) if (c.status !== 'done') blk(chunksLane, c.start, c.end, c.status, null,
+    c.status === 'busy' ? 'Analyzing…' : c.status === 'error' ? 'Analysis failed' : 'Not analyzed yet');
+  tl.appendChild(chunksLane);
+  const planLane = lane('plan', 'your cut');
+  for (const s of st.plan) blk(planLane, s.start, s.end, s.action, null,
+    `<b>${s.action}</b> ${fmt(s.start)}–${fmt(s.end)}<br>${names(s.triggers)}<br><i>${s.reason}</i>`);
+  tl.appendChild(planLane);
+  for (const c of presentCats()) {
+    const el = lane('', taxonomy[c].label);
+    for (const e of st.events) if (catOf(e.trigger) === c) {
+      const p = prefOf(e.trigger);
+      blk(el, e.start, e.end, '', catColor(c),
+        `<b>${taxonomy[c].subs[e.trigger] || e.trigger}</b> ${fmt(e.start)}–${fmt(e.end)} · ${p}<br>${e.note}`);
+      if (p === 'dislike') el.lastChild.style.outline = '1px solid var(--skip)';
+    }
+    tl.appendChild(el);
+  }
+  const ph = document.createElement('div'); ph.className = 'playhead'; ph.id = 'ph';
+  tl.appendChild(ph);
+  movePlayhead();
+}
+
+function movePlayhead() {
+  const ph = $('#ph'), lane = $('#tl .lane');
+  if (!ph || !lane || !st) return;
+  ph.style.left = `${lane.offsetLeft + (v.currentTime / st.duration) * lane.offsetWidth}px`;
+}
+
+$('#tl').addEventListener('click', e => {
+  const lane = $('#tl .lane'); if (!lane || !st) return;
+  const r = lane.getBoundingClientRect();
+  const t = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)) * st.duration;
+  const s = stepAt(t, ['skip']);
+  overrideSkip = s ? stepKey(s) : null;  // clicked into a skipped part: the user wants to hear it
+  v.currentTime = t;
+});
+$('#tl').addEventListener('mousemove', e => {
+  const tip = $('#tip'), html = e.target.dataset?.tip;
+  tip.style.display = html ? 'block' : 'none';
+  if (html) { tip.innerHTML = html; tip.style.left = `${e.clientX + 12}px`; tip.style.top = `${e.clientY + 12}px`; }
+});
+$('#tl').addEventListener('mouseleave', () => $('#tip').style.display = 'none');
+
+function presentCats() {
+  const secs = catSeconds();
+  return Object.keys(taxonomy).filter(c => secs[c]).sort((a, b) => secs[b] - secs[a]);
+}
+
+function catSeconds() {
+  const out = {};
+  for (const e of st?.events || []) {
+    out[catOf(e.trigger)] = (out[catOf(e.trigger)] || 0) + (e.end - e.start);
+    out[e.trigger] = (out[e.trigger] || 0) + (e.end - e.start);
+  }
+  return out;
+}
+
+function renderStatus() {
+  const done = st.chunks.filter(c => c.status === 'done').length, n = st.chunks.length;
+  const err = st.chunks.filter(c => c.status === 'error').length;
+  $('#progress').textContent = done === n ? `Analyzed (${fmt(st.duration)})`
+    : `Analyzing… ${done}/${n} minutes${err ? ` · ${err} failed` : ''}`;
+  const sum = k => st.plan.filter(s => s.action === k).reduce((a, s) => a + s.end - s.start, 0);
+  const skip = sum('skip'), mute = sum('mute') + sum('filter');
+  $('#summary').textContent = st.plan.length
+    ? `Your cut: skips ${fmt(skip)}, mutes ${fmt(mute)} in ${st.plan.length} places` : 'Nothing disliked found yet';
+}
+
+// ---------- profile ----------
+const openCats = new Set();
+function renderProfile() {
+  const secs = catSeconds();
+  const cats = Object.keys(taxonomy).sort((a, b) => (secs[b] || 0) - (secs[a] || 0));
+  const box = $('#prof');
+  box.replaceChildren();
+  for (const c of cats) {
+    const div = document.createElement('div');
+    div.className = `cat${openCats.has(c) ? ' open' : ''}${secs[c] ? '' : ' absent'}`;
+    div.appendChild(row(c, taxonomy[c].label, secs[c], catColor(c), true));
+    const subs = document.createElement('div'); subs.className = 'subs';
+    for (const [id, label] of Object.entries(taxonomy[c].subs)) subs.appendChild(row(id, label, secs[id]));
+    div.appendChild(subs);
+    box.appendChild(div);
+  }
+}
+
+function row(key, label, secs, color, isCat) {
+  const r = document.createElement('div'); r.className = 'row';
+  if (isCat) {
+    const more = document.createElement('button'); more.className = 'more'; more.textContent = '▸';
+    more.onclick = () => { openCats.has(key) ? openCats.delete(key) : openCats.add(key); renderProfile(); };
+    r.appendChild(more);
+    const dot = document.createElement('span'); dot.className = 'dot'; dot.style.background = color; r.appendChild(dot);
+  }
+  const l = document.createElement('span'); l.className = 'lbl'; l.textContent = label; r.appendChild(l);
+  if (secs) { const s = document.createElement('span'); s.className = 'secs'; s.textContent = fmt(secs); r.appendChild(s); }
+  // subcategory without its own setting shows the inherited one, dimmed
+  const own = profile[key], shown = own || (isCat ? 'neutral' : prefOf(key));
+  const seg = document.createElement('span'); seg.className = 'seg';
+  for (const [p, sym] of [['like', '♥'], ['neutral', '–'], ['dislike', '✕']]) {
+    const b = document.createElement('button');
+    b.className = `${p}${shown === p ? ' on' : ''}`; b.textContent = sym; b.title = p;
+    if (!own && !isCat && shown === p) b.style.opacity = .55;
+    b.onclick = () => setPref(key, p, isCat);
+    seg.appendChild(b);
+  }
+  r.appendChild(seg);
+  return r;
+}
+
+async function setPref(key, p, isCat) {
+  // on a subcategory, clicking the value it already inherits clears its own setting
+  if (!isCat && !profile[key] && prefOf(key) === p) return;
+  if (p === 'neutral' && isCat) delete profile[key];
+  else if (!isCat && profile[catOf(key)] === p) delete profile[key];
+  else profile[key] = p;
+  profile = await api('/api/profile', {method: 'PUT', headers: {'Content-Type': 'application/json'},
+                                       body: JSON.stringify(profile)});
+  renderProfile();
+  if (vid) await refresh();
+}
+
+window.addEventListener('resize', movePlayhead);
+init();
+</script>
+</body>
+</html>

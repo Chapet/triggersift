@@ -14,3 +14,4 @@ runs/
 *.webm
 *.triggers.json
 .env
+data/
