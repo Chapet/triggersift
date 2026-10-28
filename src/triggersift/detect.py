@@ -81,6 +81,8 @@ Video frames from the same clip are attached, in order, taken at {times}.
   what happens: a box can be wrapped in plastic, a hand can hide a wrapper. If it sounds crinkly, it is crinkling.
 - The FRAMES help with the object or material (a keyboard vs. a box), and with the source: no mouth sounds or
   whispering unless a mouth plausibly makes them (a click while only hands are visible is likely hands/nails).
+- Wet pops, squelches and sloshing while a jar, bottle, lotion or gel is being handled are liquid sounds, not mouth
+  sounds. Mouth sounds need the mouth: lips/tongue moving, breath, or no liquid object in view.
 
 List every trigger sound you hear, with start and end time in seconds from the start of this clip.
 - One event per continuous stretch of one trigger. If a trigger repeats with gaps under 2 seconds, keep it as one event.

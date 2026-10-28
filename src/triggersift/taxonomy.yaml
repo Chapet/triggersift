@@ -44,6 +44,7 @@ mouth:
     lip_smack: {label: Lip smacking, sound: lip smacking}
     eating: {label: Eating / chewing, sound: chewing food}
     breathing: {label: Breathing / blowing, sound: breathing into a microphone}
+    mouthing: {label: Mouthing / silent whispering (lips and tongue, no voice), sound: lips and tongue moving}
 voice:
   label: Voice
   subs:
@@ -62,6 +63,7 @@ liquid:
   label: Liquids & textures
   subs:
     water: {label: Water pouring / splashing, sound: water pouring}
+    sloshing: {label: Sloshing (liquid in a jar or bottle), sound: liquid sloshing in a jar}
     slime: {label: Slime / squishing, sound: squishing slime}
     lotion: {label: Lotion / gel, sound: squishing lotion}
     bubbles: {label: Bubbles / fizzing, sound: fizzing bubbles}
