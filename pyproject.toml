@@ -1,5 +1,5 @@
 [project]
-name = "tingle-tuner"
+name = "triggersift"
 version = "0.1.0"
 description = "Detect ASMR triggers in a video and skip or filter the ones you dislike"
 readme = "README.md"
@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.scripts]
-tingle = "tingle_tuner.cli:main"
+sift = "triggersift.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.22,<0.13.0"]

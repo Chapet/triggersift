@@ -1,4 +1,4 @@
-# Tingle Tuner (working name)
+# TriggerSift
 
 Find every ASMR trigger in a video, then skip or filter out the ones you don't like.
 
@@ -10,10 +10,10 @@ Find every ASMR trigger in a video, then skip or filter out the ones you don't l
 
 ## Usage
 ```
-uv run tingle triggers                                  # list trigger ids
-uv run tingle analyze video.mp4                         # → video.triggers.json
-uv run tingle plan video.mp4 --profile profile.json
-uv run tingle render video.mp4 --profile profile.json   # → video.tuned.mp4
+uv run sift triggers                                  # list trigger ids
+uv run sift analyze video.mp4                         # → video.triggers.json
+uv run sift plan video.mp4 --profile profile.json
+uv run sift render video.mp4 --profile profile.json   # → video.tuned.mp4
 ```
 `profile.json`: `{"mouth": "dislike", "mouth.whisper": "like", "crinkling.plastic_bag": "dislike"}`
 

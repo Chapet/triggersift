@@ -1,4 +1,4 @@
-"""tingle analyze|plan|render|triggers — development CLI."""
+"""sift analyze|plan|render|triggers — development CLI."""
 
 import argparse
 import json
@@ -16,7 +16,7 @@ def _fmt(t: float) -> str:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(prog="tingle")
+    p = argparse.ArgumentParser(prog="sift")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("triggers", help="list the trigger taxonomy")
     for name in ("analyze", "plan", "render"):
