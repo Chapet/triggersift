@@ -1,5 +1,12 @@
 # ASMR trigger taxonomy. `sound` = lowercase noun/verb phrase, used as the SAM Audio text prompt.
 # Draft, to refine on real videos.
+hands:
+  label: Hand sounds
+  subs:
+    rubbing: {label: Hand rubbing, sound: hands rubbing together}
+    fluttering: {label: Finger fluttering / hand movements, sound: fingers fluttering}
+    snapping: {label: Finger snapping, sound: finger snapping}
+    lotion_hands: {label: Lotioned hand sounds, sound: wet hands rubbing}
 tapping:
   label: Tapping
   subs:
@@ -18,6 +25,7 @@ scratching:
     fabric: {label: Scratching fabric, sound: scratching fabric}
     mic_cover: {label: Scratching the mic cover, sound: scratching a microphone cover}
     hard_surface: {label: Scratching a hard surface, sound: nails scratching a hard surface}
+    beard: {label: Beard scratching, sound: scratching a beard}
     foam: {label: Scratching foam, sound: scratching foam}
 crinkling:
   label: Crinkling
@@ -25,7 +33,8 @@ crinkling:
     plastic_bag: {label: Plastic bag, sound: crinkling plastic bag}
     foil: {label: Aluminium foil, sound: crinkling foil}
     wrapper: {label: Wrapper / cellophane, sound: crinkling wrapper}
-    paper: {label: Paper, sound: crumpling paper}
+    paper: {label: Paper crinkling, sound: crumpling paper}
+    page_turning: {label: Page turning, sound: turning pages}
 mouth:
   label: Mouth sounds
   subs:
@@ -42,6 +51,7 @@ voice:
     unintelligible: {label: Inaudible whispering, sound: unintelligible whispering}
     soft_spoken: {label: Soft speaking, sound: woman speaking softly}
     humming: {label: Humming, sound: humming}
+    talking: {label: Normal talking (intro, sponsor, chat), sound: man speaking}
 brushing:
   label: Brushing
   subs:
@@ -68,6 +78,8 @@ clicking:
     mouse: {label: Mouse clicks, sound: mouse clicking}
     pen: {label: Pen clicking / writing, sound: pen clicking}
     nails_clicking: {label: Nail clicking, sound: fingernails clicking}
+    lid: {label: Lids (opening, screwing, snapping), sound: screwing a lid}
+    clippers: {label: Nail clippers, sound: nail clippers clicking}
 cutting:
   label: Cutting & crunching
   subs:
