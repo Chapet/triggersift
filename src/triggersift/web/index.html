@@ -21,6 +21,9 @@
   label.opt select { max-width: 260px; }
   .err { color: var(--skip); }
   .sift-toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .navbtn { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 10px; text-decoration: none; }
+  .navbtn:hover { border-color: var(--accent); }
   .sift-toggle button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
   main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; padding: 16px 20px; }
   @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
@@ -78,6 +81,7 @@
   <label class="opt">Detection <select id="detector"></select></label>
   <label class="opt">Removal <select id="remover"></select></label>
   <div class="sift-toggle">Sifting <button id="sift" class="on">ON</button></div>
+  <a class="navbtn" href="/label">Labeler →</a>
 </header>
 <main>
   <section>

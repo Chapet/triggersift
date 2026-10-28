@@ -14,7 +14,9 @@
   header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
   header h1 { font-size: 18px; margin: 0; }
   header h1 span { color: var(--accent); }
-  header a { color: var(--muted); }
+  .navbtn { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 10px; text-decoration: none; }
+  .navbtn:hover { border-color: var(--accent); }
   #count { margin-left: auto; color: var(--muted); }
   select, button, input[type=text], textarea { background: var(--panel); color: var(--text); border: 1px solid var(--line);
     border-radius: 6px; padding: 6px 10px; font: inherit; }
@@ -62,7 +64,7 @@
 <header>
   <h1>Trigger<span>Sift</span> · labeling</h1>
   <select id="pick"><option value="">Choose a source video…</option></select>
-  <a href="/">player</a>
+  <a class="navbtn" href="/">← Player</a>
   <span id="count"></span>
 </header>
 <main>
