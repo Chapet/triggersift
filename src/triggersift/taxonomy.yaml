@@ -44,7 +44,7 @@ mouth:
     lip_smack: {label: Lip smacking, sound: lip smacking}
     eating: {label: Eating / chewing, sound: chewing food}
     breathing: {label: Breathing / blowing, sound: breathing into a microphone}
-    mouthing: {label: Mouthing / silent whispering (lips and tongue, no voice), sound: lips and tongue moving}
+    mouthing: {label: "Mouthing / silent whispering (lips and tongue, no voice)", sound: lips and tongue moving}
 voice:
   label: Voice
   subs:
@@ -52,7 +52,7 @@ voice:
     unintelligible: {label: Inaudible whispering, sound: unintelligible whispering}
     soft_spoken: {label: Soft speaking, sound: woman speaking softly}
     humming: {label: Humming, sound: humming}
-    talking: {label: Normal talking (intro, sponsor, chat), sound: man speaking}
+    talking: {label: "Normal talking (intro, sponsor, chat)", sound: man speaking}
 brushing:
   label: Brushing
   subs:
@@ -80,7 +80,7 @@ clicking:
     mouse: {label: Mouse clicks, sound: mouse clicking}
     pen: {label: Pen clicking / writing, sound: pen clicking}
     nails_clicking: {label: Nail clicking, sound: fingernails clicking}
-    lid: {label: Lids (opening, screwing, snapping), sound: screwing a lid}
+    lid: {label: "Lids (opening, screwing, snapping)", sound: screwing a lid}
     clippers: {label: Nail clippers, sound: nail clippers clicking}
 cutting:
   label: Cutting & crunching
@@ -88,7 +88,7 @@ cutting:
     scissors: {label: Scissors / hair cutting, sound: scissors cutting}
     kinetic_sand: {label: Kinetic sand, sound: cutting kinetic sand}
     soap: {label: Soap cutting, sound: cutting soap}
-    crunching: {label: Crunching (ice, crispy food), sound: crunching}
+    crunching: {label: "Crunching (ice, crispy food)", sound: crunching}
 ambient:
   label: Ambient & background
   subs:
@@ -99,12 +99,12 @@ ambient:
     fan: {label: Fan / AC / air purifier, sound: electric fan noise}
     hum: {label: Electrical hum / buzz, sound: electrical hum}
     hiss: {label: Hiss / white noise (mic noise), sound: static hiss}
-    outside: {label: Outside noise (traffic, birds, people), sound: traffic noise}
-    room: {label: Room noise (footsteps, doors, pets), sound: footsteps in a room}
+    outside: {label: "Outside noise (traffic, birds, people)", sound: traffic noise}
+    room: {label: "Room noise (footsteps, doors, pets)", sound: footsteps in a room}
 noise:
   label: Recording noise & bumps
   subs:
-    thud: {label: Muffled thud / bump (chair, desk, body), sound: muffled thud}
+    thud: {label: "Muffled thud / bump (chair, desk, body)", sound: muffled thud}
     mic_bump: {label: Mic bump / handling noise, sound: microphone handling noise}
     spike: {label: Sudden loud spike / clipping, sound: loud distorted burst}
     crackle: {label: Pops / crackle / glitch (old or bad recording), sound: audio crackle and pops}
