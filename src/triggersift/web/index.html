@@ -80,6 +80,10 @@
   <select id="pick"><option value="">Choose a video…</option></select>
   <label class="opt">Detection <select id="detector"></select></label>
   <label class="opt">Removal <select id="remover"></select></label>
+  <label class="opt" title="Caps loud spikes: anything louder than this level is pressed down, quiet sounds are untouched">
+    Volume cap <select id="cap">
+      <option value="off">off</option><option value="-6">−6 dB (light)</option><option value="-12">−12 dB</option>
+      <option value="-18">−18 dB</option><option value="-24">−24 dB (strong)</option></select></label>
   <div class="sift-toggle">Sifting <button id="sift" class="on">ON</button></div>
   <a class="navbtn" href="/label">Labeler →</a>
 </header>
@@ -186,8 +190,12 @@ function ensureAudio() {
   if (audio) { audio.ctx.resume(); return; }
   const ctx = new AudioContext();
   const gain = ctx.createGain();
-  ctx.createMediaElementSource(v).connect(gain).connect(ctx.destination);
-  audio = {ctx, gain};
+  // limiter: hard knee, high ratio, fast attack → spikes above the cap get squashed, the rest passes untouched
+  const limiter = ctx.createDynamicsCompressor();
+  limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.002; limiter.release.value = 0.25;
+  ctx.createMediaElementSource(v).connect(gain).connect(limiter).connect(ctx.destination);
+  audio = {ctx, gain, limiter};
+  applyCap();
 }
 
 const stepKey = s => `${s.start}-${s.end}`;
@@ -207,11 +215,21 @@ function tick() {
     const mute = stepAt(t + 0.05, ['mute', 'filter']);
     setGain(mute ? 0 : 1);
     if (mute) flash(`Muting ${names(mute.triggers)}`, 'mute', true);
+    else if (audio && audio.limiter.reduction < -6) flash(`Loud spike capped (${Math.round(audio.limiter.reduction)} dB)`, 'mute', true);
   } else setGain(1);
   if (st) movePlayhead();
   requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);
+
+// Volume cap (limiter threshold). 0 dB with ratio 20 is effectively off for normal audio.
+function applyCap() {
+  const c = $('#cap').value;
+  localStorageSet('cap', c);
+  if (audio) audio.limiter.threshold.value = c === 'off' ? 0 : Number(c);
+}
+$('#cap').value = localStorageGet('cap') || '-12';
+$('#cap').onchange = applyCap;
 
 let gainTarget = 1;
 function setGain(x) {

@@ -101,3 +101,11 @@ ambient:
     hiss: {label: Hiss / white noise (mic noise), sound: static hiss}
     outside: {label: Outside noise (traffic, birds, people), sound: traffic noise}
     room: {label: Room noise (footsteps, doors, pets), sound: footsteps in a room}
+noise:
+  label: Recording noise & bumps
+  subs:
+    thud: {label: Muffled thud / bump (chair, desk, body), sound: muffled thud}
+    mic_bump: {label: Mic bump / handling noise, sound: microphone handling noise}
+    spike: {label: Sudden loud spike / clipping, sound: loud distorted burst}
+    crackle: {label: Pops / crackle / glitch (old or bad recording), sound: audio crackle and pops}
+    chair_creak: {label: Chair or furniture creak, sound: chair creaking}
