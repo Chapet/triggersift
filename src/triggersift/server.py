@@ -1,7 +1,7 @@
 """Web player: pick a video, it gets analyzed ahead of the playhead, disliked triggers are skipped or muted live.
 
     uv run python -m triggersift.server          # http://localhost:8000
-Library folder: $TRIGGERSIFT_LIBRARY (default ~/Videos/ASMR). Profile: data/profile.json.
+Library folder: $TRIGGERSIFT_LIBRARY (default ~/Videos/ASMR/SourceVideos). Profile: data/profile.json.
 """
 
 import hashlib
@@ -16,10 +16,11 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from .detect import Chunk, analyze_chunk, cached_chunk, chunks, duration, run_dir
+from .labeling import make_routes
 from .plan import plan
 from .profile import Pref, Profile, category_labels, taxonomy
 
-LIBRARY = Path(os.environ.get("TRIGGERSIFT_LIBRARY", "~/Videos/ASMR")).expanduser()
+LIBRARY = Path(os.environ.get("TRIGGERSIFT_LIBRARY", "~/Videos/ASMR/SourceVideos")).expanduser()
 DATA = Path("data")
 PROFILE = DATA / "profile.json"
 VIDEO_EXT = {".mp4", ".webm", ".mkv", ".mov", ".m4v"}
@@ -126,6 +127,9 @@ def _analysis(vid: str) -> Analysis:
         if vid not in _analyses:
             _analyses[vid] = Analysis(_video(vid))
         return _analyses[vid]
+
+
+app.include_router(make_routes(_video))
 
 
 @app.get("/")

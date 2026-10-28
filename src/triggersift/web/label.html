@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TriggerSift Labeling</title>
+<style>
+  :root {
+    --bg: #111317; --panel: #1a1d23; --line: #2a2e36; --text: #e6e6ea; --muted: #8c909a;
+    --accent: #8e7cf0; --sel: #f5a524; --ok: #2f7d4f; --bad: #e5484d;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; }
+  header h1 span { color: var(--accent); }
+  header a { color: var(--muted); }
+  #count { margin-left: auto; color: var(--muted); }
+  select, button, input[type=text], textarea { background: var(--panel); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 10px; font: inherit; }
+  button { cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .4; cursor: default; }
+  select { max-width: 50vw; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 16px; padding: 16px 20px; }
+  @media (max-width: 1000px) { main { grid-template-columns: 1fr; } }
+  video { width: 100%; max-height: 55vh; background: #000; border-radius: 8px; display: block; }
+  .bar { position: relative; height: 34px; background: var(--panel); border-radius: 6px; margin-top: 8px; cursor: pointer; }
+  .bar .clip { position: absolute; top: 4px; bottom: 4px; background: var(--ok); border-radius: 2px; min-width: 3px; }
+  .bar .clip.unsure { background: #7a6a2a; }
+  .bar .selbox { position: absolute; top: 0; bottom: 0; background: rgba(245,165,36,.35); border: 1px solid var(--sel); }
+  .bar .ph { position: absolute; top: 0; bottom: 0; width: 2px; background: #fff; pointer-events: none; }
+  .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .controls .t { font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; }
+  .keys { color: var(--muted); font-size: 12px; margin-top: 8px; }
+  kbd { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; font-size: 11px; }
+  aside { background: var(--panel); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+    max-height: calc(100vh - 90px); }
+  aside h2 { font-size: 14px; margin: 0; }
+  #search { width: 100%; }
+  .recent { display: flex; flex-wrap: wrap; gap: 4px; }
+  .recent button { padding: 2px 8px; font-size: 12px; }
+  .chosen { display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; }
+  .chip { background: var(--line); border-radius: 12px; padding: 2px 4px 2px 10px; font-size: 12px; display: inline-flex; gap: 4px; align-items: center; }
+  .chip.main { background: var(--accent); color: #fff; }
+  .chip button { background: none; border: none; color: inherit; padding: 0 4px; }
+  .list { overflow: auto; flex: 1; min-height: 160px; border-top: 1px solid var(--line); padding-top: 4px; }
+  .list .cat { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin: 8px 0 2px; }
+  .list label { display: flex; gap: 6px; align-items: center; padding: 2px 0; cursor: pointer; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  textarea { width: 100%; resize: vertical; min-height: 34px; }
+  .saved { margin-top: 16px; }
+  .saved h2 { font-size: 14px; }
+  .saved table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .saved td { border-top: 1px solid var(--line); padding: 4px 6px; vertical-align: top; }
+  .saved td.t { font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer; color: var(--accent); }
+  .msg { min-height: 18px; font-size: 12px; color: var(--muted); }
+  .msg.err { color: var(--bad); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Trigger<span>Sift</span> · labeling</h1>
+  <select id="pick"><option value="">Choose a source video…</option></select>
+  <a href="/">player</a>
+  <span id="count"></span>
+</header>
+<main>
+  <section>
+    <video id="v" controls preload="metadata"></video>
+    <div id="bar" class="bar"></div>
+    <div class="controls">
+      <button id="setIn" title="[">Start [</button>
+      <button data-nudge="in,-0.1">−0.1</button><span class="t" id="tIn">–</span><button data-nudge="in,0.1">+0.1</button>
+      <button id="setOut" title="]">End ]</button>
+      <button data-nudge="out,-0.1">−0.1</button><span class="t" id="tOut">–</span><button data-nudge="out,0.1">+0.1</button>
+      <span id="len" class="t"></span>
+      <button id="new5" title="N">New 5 s clip here (N)</button>
+      <button id="loop" title="L">Loop (L)</button>
+    </div>
+    <div class="keys">
+      <kbd>Space</kbd> play/pause · <kbd>←</kbd><kbd>→</kbd> 1 s (<kbd>Shift</kbd> 5 s) · <kbd>[</kbd> <kbd>]</kbd> start/end at playhead ·
+      <kbd>N</kbd> new 5 s clip · <kbd>L</kbd> loop selection · <kbd>/</kbd> search triggers · <kbd>Ctrl</kbd>+<kbd>Enter</kbd> save
+    </div>
+    <div class="saved">
+      <h2>Clips from this video</h2>
+      <table id="saved"></table>
+    </div>
+  </section>
+  <aside>
+    <h2>What do you hear?</h2>
+    <div class="chosen" id="chosen"></div>
+    <div class="recent" id="recent"></div>
+    <input id="search" type="text" placeholder="Search triggers (/)">
+    <div class="list" id="list"></div>
+    <textarea id="note" placeholder="Note: what exactly it is, or a sound not in the list"></textarea>
+    <div class="row">
+      <label><input type="checkbox" id="unsure"> Unsure</label>
+      <span style="flex:1"></span>
+      <button id="clear">Clear</button>
+      <button id="save" class="primary">Save clip</button>
+    </div>
+    <div class="msg" id="msg"></div>
+  </aside>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+const v = $('#v');
+let taxonomy = {}, clips = [], vid = null, vname = null;
+let sel = null;                       // {in, out}
+let chosen = [], main = null;         // trigger ids, main = the dominant one
+let editing = null;                   // id of the clip being edited
+let loop = false;
+const fmt = t => t == null ? '–' : `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
+const label = id => { const c = id.split('.')[0]; return `${taxonomy[c]?.label} › ${taxonomy[c]?.subs[id] || id}`; };
+const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+                set(k, x) { try { localStorage.setItem(k, JSON.stringify(x)); } catch {} } };
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.detail || `${r.status}`);
+  return body;
+}
+
+async function init() {
+  taxonomy = await api('/api/taxonomy');
+  for (const x of await api('/api/videos')) $('#pick').add(new Option(x.name, x.id));
+  const last = store.get('labelVid');
+  if (last && [...$('#pick').options].some(o => o.value === last)) { $('#pick').value = last; choose(last); }
+  await reloadClips();
+  renderList(); renderChosen(); renderRecent();
+}
+
+function choose(id) {
+  vid = id; store.set('labelVid', id); sel = null; editing = null;
+  vname = $('#pick').selectedOptions[0]?.text;
+  if (!id) return;
+  v.src = `/api/videos/${id}/media`;
+  const pos = store.get(`pos:${id}`);
+  v.addEventListener('loadedmetadata', () => { if (pos) v.currentTime = pos; renderBar(); renderSaved(); }, {once: true});
+}
+$('#pick').onchange = e => choose(e.target.value);
+
+async function reloadClips() {
+  clips = await api('/api/clips');
+  $('#count').textContent = `${clips.length} clips labeled in total`;
+  renderBar(); renderSaved();
+}
+
+const mine = () => clips.filter(c => vname && c.video.replace(/\.[^.]+$/, '') === vname);
+
+// ---------- selection ----------
+function setSel(a, b) {
+  sel = {in: Math.max(0, a), out: Math.min(v.duration || b, b)};
+  if (sel.out < sel.in) [sel.in, sel.out] = [sel.out, sel.in];
+  renderSel();
+}
+function renderSel() {
+  $('#tIn').textContent = fmt(sel?.in); $('#tOut').textContent = fmt(sel?.out);
+  $('#len').textContent = sel ? `${(sel.out - sel.in).toFixed(1)} s` : '';
+  renderBar();
+}
+$('#setIn').onclick = () => setSel(v.currentTime, sel?.out ?? v.currentTime + 5);
+$('#setOut').onclick = () => setSel(sel?.in ?? Math.max(0, v.currentTime - 5), v.currentTime);
+$('#new5').onclick = () => { editing = null; setSel(v.currentTime, v.currentTime + 5); v.currentTime = sel.in; };
+document.querySelectorAll('[data-nudge]').forEach(b => b.onclick = () => {
+  if (!sel) return;
+  const [k, d] = b.dataset.nudge.split(','); sel[k] = Math.max(0, sel[k] + Number(d));
+  setSel(sel.in, sel.out); v.currentTime = k === 'in' ? sel.in : Math.max(sel.in, sel.out - 1);
+});
+$('#loop').onclick = () => { loop = !loop; $('#loop').classList.toggle('primary', loop); if (loop && sel) { v.currentTime = sel.in; v.play(); } };
+
+function tick() {
+  if (loop && sel && !v.paused && v.currentTime >= sel.out) v.currentTime = sel.in;
+  const ph = $('#bar .ph'); if (ph && v.duration) ph.style.left = `${v.currentTime / v.duration * 100}%`;
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+setInterval(() => { if (vid && !v.paused) store.set(`pos:${vid}`, v.currentTime); }, 2000);
+
+// ---------- bar ----------
+function renderBar() {
+  const bar = $('#bar'), D = v.duration;
+  bar.replaceChildren();
+  if (!D) return;
+  const pct = x => `${x / D * 100}%`;
+  for (const c of mine()) {
+    const b = document.createElement('div');
+    b.className = `clip${c.unsure ? ' unsure' : ''}`;
+    b.style.left = pct(c.start); b.style.width = pct(c.end - c.start);
+    b.title = `${fmt(c.start)} ${c.triggers.map(label).join(', ')}`;
+    bar.appendChild(b);
+  }
+  if (sel) { const s = document.createElement('div'); s.className = 'selbox';
+    s.style.left = pct(sel.in); s.style.width = pct(sel.out - sel.in); bar.appendChild(s); }
+  const ph = document.createElement('div'); ph.className = 'ph'; bar.appendChild(ph);
+}
+$('#bar').onclick = e => {
+  if (!v.duration) return;
+  const r = e.currentTarget.getBoundingClientRect();
+  const t = (e.clientX - r.left) / r.width * v.duration;
+  const hit = mine().find(c => t >= c.start && t <= c.end);
+  if (hit) edit(hit); else v.currentTime = t;
+};
+
+// ---------- trigger picking ----------
+function renderList() {
+  const q = $('#search').value.trim().toLowerCase();
+  const box = $('#list'); box.replaceChildren();
+  for (const [c, spec] of Object.entries(taxonomy)) {
+    const items = Object.entries(spec.subs).filter(([id, l]) => !q || `${spec.label} ${l} ${id}`.toLowerCase().includes(q));
+    if (!items.length) continue;
+    const h = document.createElement('div'); h.className = 'cat'; h.textContent = spec.label; box.appendChild(h);
+    for (const [id, l] of items) {
+      const lab = document.createElement('label');
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = chosen.includes(id);
+      cb.onchange = () => toggle(id);
+      lab.append(cb, l); box.appendChild(lab);
+    }
+  }
+}
+$('#search').oninput = renderList;
+$('#search').onkeydown = e => {
+  if (e.key === 'Enter') { const first = $('#list input'); if (first) { first.click(); $('#search').value = ''; renderList(); } }
+  if (e.key === 'Escape') { $('#search').blur(); }
+};
+
+function toggle(id) {
+  if (chosen.includes(id)) { chosen = chosen.filter(x => x !== id); if (main === id) main = chosen[0] || null; }
+  else { chosen.push(id); if (!main) main = id; }
+  renderChosen(); renderList();
+}
+function renderChosen() {
+  const box = $('#chosen'); box.replaceChildren();
+  if (!chosen.length) { box.innerHTML = '<span class="msg">Nothing picked. The first one you pick is the main sound; click a chip to make it main.</span>'; return; }
+  for (const id of chosen) {
+    const ch = document.createElement('span'); ch.className = `chip${id === main ? ' main' : ''}`;
+    ch.title = id === main ? 'main sound' : 'click: make main';
+    ch.append(label(id));
+    ch.onclick = () => { main = id; renderChosen(); };
+    const x = document.createElement('button'); x.textContent = '×'; x.onclick = e => { e.stopPropagation(); toggle(id); };
+    ch.appendChild(x); box.appendChild(ch);
+  }
+}
+function renderRecent() {
+  const box = $('#recent'); box.replaceChildren();
+  for (const id of store.get('recent') || []) {
+    if (!Object.values(taxonomy).some(c => id in c.subs)) continue;
+    const b = document.createElement('button'); b.textContent = taxonomy[id.split('.')[0]].subs[id];
+    b.title = label(id); b.onclick = () => toggle(id); box.appendChild(b);
+  }
+}
+function remember(ids) {
+  const r = [...ids, ...(store.get('recent') || []).filter(x => !ids.includes(x))].slice(0, 12);
+  store.set('recent', r); renderRecent();
+}
+
+// ---------- save / edit / delete ----------
+function clearForm() {
+  chosen = []; main = null; editing = null; $('#note').value = ''; $('#unsure').checked = false;
+  renderChosen(); renderList();
+}
+$('#clear').onclick = clearForm;
+
+async function save() {
+  if (!sel) return msg('Set a start and end first (N for a 5 s clip at the playhead).', true);
+  try {
+    const clip = await api(`/api/clips/${vid}`, {method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({start: sel.in, end: sel.out, triggers: chosen, main, note: $('#note').value,
+                            unsure: $('#unsure').checked, replace: editing})});
+    remember(chosen);
+    msg(`Saved ${fmt(clip.start)}–${fmt(clip.end)}: ${clip.triggers.map(label).join(', ') || clip.note}`);
+    clearForm(); sel = null; renderSel();
+    await reloadClips();
+  } catch (e) { msg(e.message, true); }
+}
+$('#save').onclick = save;
+
+function edit(c) {
+  editing = c.id; chosen = [...c.triggers]; main = c.main; $('#note').value = c.note; $('#unsure').checked = c.unsure;
+  setSel(c.start, c.end); v.currentTime = c.start; renderChosen(); renderList();
+  msg(`Editing the clip at ${fmt(c.start)}. Save replaces it.`);
+}
+
+function renderSaved() {
+  const t = $('#saved'); t.replaceChildren();
+  for (const c of mine().sort((a, b) => a.start - b.start)) {
+    const tr = document.createElement('tr');
+    const td1 = document.createElement('td'); td1.className = 't'; td1.textContent = `${fmt(c.start)}–${fmt(c.end)}`;
+    td1.onclick = () => edit(c);
+    const td2 = document.createElement('td');
+    td2.textContent = c.triggers.map(id => (id === c.main ? '★ ' : '') + label(id)).join(' · ')
+      + (c.note ? ` — ${c.note}` : '') + (c.unsure ? ' (unsure)' : '');
+    const td3 = document.createElement('td'); const del = document.createElement('button'); del.textContent = 'Delete';
+    del.onclick = async () => { if (confirm('Delete this clip?')) { await api(`/api/clips/${c.id}`, {method: 'DELETE'});
+      if (editing === c.id) clearForm(); await reloadClips(); } };
+    td3.appendChild(del);
+    tr.append(td1, td2, td3); t.appendChild(tr);
+  }
+}
+
+function msg(text, err) { const m = $('#msg'); m.textContent = text; m.className = `msg${err ? ' err' : ''}`; }
+
+// ---------- keys ----------
+document.addEventListener('keydown', e => {
+  const typing = ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName) && document.activeElement.type !== 'checkbox';
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); save(); return; }
+  if (typing) return;
+  const step = e.shiftKey ? 5 : 1;
+  switch (e.key) {
+    case ' ': e.preventDefault(); v.paused ? v.play() : v.pause(); break;
+    case 'ArrowLeft': e.preventDefault(); v.currentTime -= step; break;
+    case 'ArrowRight': e.preventDefault(); v.currentTime += step; break;
+    case '[': $('#setIn').click(); break;
+    case ']': $('#setOut').click(); break;
+    case 'n': case 'N': $('#new5').click(); break;
+    case 'l': case 'L': $('#loop').click(); break;
+    case '/': e.preventDefault(); $('#search').focus(); break;
+  }
+});
+
+init();
+</script>
+</body>
+</html>

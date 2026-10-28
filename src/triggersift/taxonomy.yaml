@@ -90,8 +90,14 @@ cutting:
     soap: {label: Soap cutting, sound: cutting soap}
     crunching: {label: Crunching (ice, crispy food), sound: crunching}
 ambient:
-  label: Ambient
+  label: Ambient & background
   subs:
     rain: {label: Rain, sound: rain}
+    thunder: {label: Thunder, sound: thunder}
     fire: {label: Fire crackling, sound: fire crackling}
     music: {label: Background music, sound: background music}
+    fan: {label: Fan / AC / air purifier, sound: electric fan noise}
+    hum: {label: Electrical hum / buzz, sound: electrical hum}
+    hiss: {label: Hiss / white noise (mic noise), sound: static hiss}
+    outside: {label: Outside noise (traffic, birds, people), sound: traffic noise}
+    room: {label: Room noise (footsteps, doors, pets), sound: footsteps in a room}
