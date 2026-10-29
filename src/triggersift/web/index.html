@@ -12,15 +12,25 @@
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.4 system-ui, sans-serif; }
   header { display: flex; align-items: center; gap: 16px; padding: 12px 20px; border-bottom: 1px solid var(--line); }
+  header #pick { flex: 1; min-width: 0; max-width: 640px; }
+  header .navbtn { margin-left: auto; white-space: nowrap; }
+  .panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
+  .panel .group { background: var(--panel); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+  .panel h3 { font-size: 13px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
+  .panel label { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted);
+    font-size: 12px; margin-bottom: 6px; }
+  .panel select { min-width: 0; max-width: 70%; }
+  .panel p { color: var(--muted); font-size: 11px; margin: 4px 0 0; }
   header h1 { font-size: 18px; margin: 0; letter-spacing: .3px; }
   header h1 span { color: var(--accent); }
   select, button { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
     padding: 6px 10px; font: inherit; cursor: pointer; }
-  select { max-width: 50vw; }
+  select { max-width: 100%; }
   label.opt { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 6px; }
   label.opt select { max-width: 260px; }
   .err { color: var(--skip); }
   .sift-toggle { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .sift-toggle button { padding: 2px 10px; font-size: 12px; }
   .navbtn { background: var(--panel); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
     padding: 6px 10px; text-decoration: none; }
   .navbtn:hover { border-color: var(--accent); }
@@ -78,15 +88,6 @@
 <header>
   <h1>Trigger<span>Sift</span></h1>
   <select id="pick"><option value="">Choose a video…</option></select>
-  <label class="opt">Detection <select id="detector"></select></label>
-  <label class="opt">Removal <select id="remover"></select></label>
-  <label class="opt" title="Processes the whole soundtrack once (a few seconds to a minute), then plays the processed version">
-    Effect <select id="effect"><option value="">none</option></select></label>
-  <label class="opt" title="Caps loud spikes: anything louder than this level is pressed down, quiet sounds are untouched">
-    Volume cap <select id="cap">
-      <option value="off">off</option><option value="-6">−6 dB (light)</option><option value="-12">−12 dB</option>
-      <option value="-18">−18 dB</option><option value="-24">−24 dB (strong)</option></select></label>
-  <div class="sift-toggle">Sifting <button id="sift" class="on">ON</button></div>
   <a class="navbtn" href="/label">Labeler →</a>
 </header>
 <main>
@@ -94,6 +95,28 @@
     <div class="stage">
       <video id="v" controls preload="metadata"></video>
       <div id="badge" class="badge"></div>
+    </div>
+    <div class="panel">
+      <div class="group">
+        <h3>1 · Find the triggers</h3>
+        <label>Detection <select id="detector"></select></label>
+        <p>Listens to the video and marks every trigger on the timeline below. Runs ahead of the playhead.</p>
+      </div>
+      <div class="group">
+        <h3>2 · Your cut <span class="sift-toggle"><button id="sift" class="on">ON</button></span></h3>
+        <label>Short dislikes <select id="remover"></select></label>
+        <p>Only where you see red or orange on the <b>your cut</b> lane, i.e. a trigger you marked ✕ was found.
+          Long stretches (red) are skipped; short or sparse ones (orange) are muted or ducked.</p>
+      </div>
+      <div class="group">
+        <h3>3 · Whole soundtrack</h3>
+        <label title="Processes the whole soundtrack once (seconds to a minute), then plays the processed version">Effect
+          <select id="effect"><option value="">none</option></select></label>
+        <label title="Presses down anything louder than this level; quiet sounds are untouched">Volume cap
+          <select id="cap"><option value="off">off</option><option value="-6">−6 dB (light)</option>
+            <option value="-12">−12 dB</option><option value="-18">−18 dB</option><option value="-24">−24 dB (strong)</option></select></label>
+        <p>Always on, everywhere in the video, whatever was detected.</p>
+      </div>
     </div>
     <div class="status"><span id="progress"></span><span id="summary"></span><span id="fxstatus"></span></div>
     <div id="tl" class="timeline"></div>
@@ -260,6 +283,7 @@ $('#sift').onclick = () => {
   sift = !sift;
   $('#sift').textContent = sift ? 'ON' : 'OFF';
   $('#sift').classList.toggle('on', sift);
+  if (st) renderStatus();
 };
 
 // ---------- effect: switch to a processed copy of the soundtrack ----------
@@ -374,8 +398,11 @@ function renderStatus() {
     : `Analyzing… ${done}/${n} minutes${err ? ` · ${err} failed` : ''}`;
   const sum = k => st.plan.filter(s => s.action === k).reduce((a, s) => a + s.end - s.start, 0);
   const skip = sum('skip'), mute = sum('mute') + sum('filter');
-  $('#summary').textContent = st.plan.length
-    ? `Your cut: skips ${fmt(skip)}, mutes ${fmt(mute)} in ${st.plan.length} places` : 'Nothing disliked found yet';
+  const soft = remover === 'duck' ? 'ducks' : 'mutes';
+  const anyDislike = Object.values(profile).includes('dislike');
+  $('#summary').textContent = !anyDislike ? 'Your cut: nothing yet. Mark a trigger ✕ on the right to cut it.'
+    : st.plan.length ? `Your cut: skips ${fmt(skip)}, ${soft} ${fmt(mute)} in ${st.plan.length} places${sift ? '' : ' (Sifting is OFF)'}`
+    : 'Your cut: none of your ✕ triggers found (so far) in this video.';
 }
 
 // ---------- profile ----------

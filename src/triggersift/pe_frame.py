@@ -18,7 +18,7 @@ from .profile import taxonomy
 VENDOR = Path(__file__).resolve().parents[3] / "vendor" / "perception_models"
 MODEL = "pe-a-frame-large"
 SR = 48_000
-WINDOW_S = 30.0  # audio per forward pass
+WINDOW_S = 15.0  # audio per forward pass; 30 s peaked at ~7 GB of GPU memory
 
 
 def _import_pe():
@@ -171,6 +171,10 @@ def detect_chunk(path: Path, start: float, length: float) -> tuple[list[Event], 
     ids, ph = phrases()
     audio = load_audio(path, start, length)
     with _gpu:
-        probs, hop = frame_probs(audio, ph)
+        try:
+            probs, hop = frame_probs(audio, ph)
+        finally:
+            import torch
+            torch.cuda.empty_cache()  # hand memory back between chunks
     return (category_events(probs, hop, ids, start),
             {"seconds": round(time.monotonic() - t0, 2), "usage": None, "model": MODEL})

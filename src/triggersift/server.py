@@ -69,6 +69,7 @@ class Analysis:
     def start(self, focus: float) -> None:
         with self.lock:
             self.focus = focus
+            self.errors.clear()  # retry failed chunks (e.g. GPU out of memory while something else ran)
             want = min(self.workers, len(self._missing())) - self.running
             self.running += max(0, want)
         for _ in range(max(0, want)):
