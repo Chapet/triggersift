@@ -23,7 +23,6 @@ EFFECTS = {
     "denoise": ("Background noise reduction (fan, hiss) · medium", ("denoise", 1.5, -20)),
     "denoise_strong": ("Background noise reduction · strong", ("denoise", 2.0, -25)),
     "limiter": ("Spike limiter (lookahead, −12 dB)", "alimiter=limit=0.25:attack=5:release=50:level=disabled"),
-    "loudnorm": ("Even loudness (EBU R128)", "loudnorm=I=-23:TP=-2:LRA=11"),
     "declick": ("Mouth-click & crackle removal (subtle)", "adeclick"),
 }
 
