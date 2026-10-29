@@ -135,6 +135,7 @@ def main() -> None:
     lines += ["## Per category", "",
               "| category | clips | PE AUC | PE P / R / F1 @0.6 | Wonder P / R / F1 |",
               "|---|---|---|---|---|"]
+    aucs, pe_f1s, w_f1s = [], [], []
     for k in cats:
         pos = [pe[c["id"]][k] for c in clips if k in truth(c)]
         neg = [pe[c["id"]][k] for c in clips if k not in truth(c)]
@@ -142,6 +143,7 @@ def main() -> None:
         tp = sum(1 for c in clips if k in truth(c) and pe[c["id"]][k] > PE_THRESHOLD)
         fp = sum(1 for c in clips if k not in truth(c) and pe[c["id"]][k] > PE_THRESHOLD)
         pe_prf = prf(tp, fp, len(pos) - tp)
+        aucs.append(a_); pe_f1s.append(pe_prf[2])
         row = f"| {k} | {counts[k]} | {a_:.2f} | {pe_prf[0]:.2f} / {pe_prf[1]:.2f} / {pe_prf[2]:.2f} |"
         if wonder:
             ok = [c for c in clips if c["id"] in wonder and "error" not in wonder[c["id"]]]
@@ -149,26 +151,17 @@ def main() -> None:
             wfp = sum(1 for c in ok if k not in truth(c) and k in wonder_cats(c["id"]))
             wfn = sum(1 for c in ok if k in truth(c) and k not in wonder_cats(c["id"]))
             w = prf(wtp, wfp, wfn)
+            w_f1s.append(w[2])
             row += f" {w[0]:.2f} / {w[1]:.2f} / {w[2]:.2f} |"
         else:
             row += " – |"
         lines.append(row)
 
-    # main sound: does the detector's top category match the clip's main label?
-    scored = [c for c in clips if c["main"] and cat(c["main"]) in cats]
-    pe_main = sum(1 for c in scored if max(cats, key=lambda k: pe[c["id"]][k]) == cat(c["main"]))
-    lines += ["", "## Main sound (top category = the clip's ★ label)", "",
-              f"- PE-A-Frame zero-shot: {pe_main}/{len(scored)} ({pe_main / len(scored):.0%})"]
+    # overall: plain average over the scored categories (each category counts the same, whatever its size)
+    lines += ["", "## Average over categories", "",
+              f"- PE-A-Frame zero-shot: AUC {np.mean(aucs):.2f}, F1 {np.mean(pe_f1s):.2f}"]
     if wonder:
-        def wonder_top(cid):
-            secs = Counter()
-            for e in wonder[cid].get("events", []):
-                if cat(e["trigger"]) in cats:
-                    secs[cat(e["trigger"])] += e["end"] - e["start"]
-            return secs.most_common(1)[0][0] if secs else None
-        ok = [c for c in scored if "error" not in wonder.get(c["id"], {"error": 1})]
-        w_main = sum(1 for c in ok if wonder_top(c["id"]) == cat(c["main"]))
-        lines.append(f"- Muse Wonder: {w_main}/{len(ok)} ({w_main / len(ok):.0%})")
+        lines.append(f"- Muse Wonder: F1 {np.mean(w_f1s):.2f}")
 
     # the false alarm that matters most to viewers
     no_mouth = [c for c in clips if "mouth" not in truth(c)]

@@ -59,13 +59,12 @@ def _clean(body: dict, video: Path) -> dict:
         raise HTTPException(400, "a clip must be 0.5–60 s long")
     if not triggers and not body.get("note"):
         raise HTTPException(400, "pick at least one trigger, or describe the sound in the note")
-    main = body.get("main") if body.get("main") in triggers else (triggers[0] if triggers else None)
     yt = youtube_id(video.name)
     return {
         "id": f"{yt or re.sub(r'[^A-Za-z0-9]+', '-', video.stem)[:20]}_{round(start * 1000):08d}",
         "video": video.name, "youtube_id": yt,
         "start": round(start, 3), "end": round(end, 3),
-        "main": main, "triggers": triggers,
+        "triggers": triggers,  # all equal: no "main" sound
         "note": body.get("note", "").strip(), "unsure": bool(body.get("unsure")),
     }
 

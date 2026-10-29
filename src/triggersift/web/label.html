@@ -55,7 +55,6 @@
   .recent button { padding: 2px 8px; font-size: 12px; }
   .chosen { display: flex; flex-wrap: wrap; gap: 4px; min-height: 26px; }
   .chip { background: var(--line); border-radius: 12px; padding: 2px 4px 2px 10px; font-size: 12px; display: inline-flex; gap: 4px; align-items: center; }
-  .chip.main { background: var(--accent); color: #fff; }
   .chip button { background: none; border: none; color: inherit; padding: 0 4px; }
   .list { overflow: auto; flex: 1; min-height: 160px; border-top: 1px solid var(--line); padding-top: 4px; }
   .list .cat { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin: 8px 0 2px; }
@@ -132,7 +131,7 @@ const $ = s => document.querySelector(s);
 const v = $('#v');
 let taxonomy = {}, clips = [], vid = null, vname = null;
 let sel = null;                       // {in, out}
-let chosen = [], main = null;         // trigger ids, main = the dominant one
+let chosen = [];                      // trigger ids heard in the clip, all equal
 let editing = null;                   // id of the clip being edited
 let loop = false;
 const fmt = t => t == null ? '–' : `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
@@ -323,18 +322,15 @@ $('#search').onkeydown = e => {
 };
 
 function toggle(id) {
-  if (chosen.includes(id)) { chosen = chosen.filter(x => x !== id); if (main === id) main = chosen[0] || null; }
-  else { chosen.push(id); if (!main) main = id; }
+  chosen = chosen.includes(id) ? chosen.filter(x => x !== id) : [...chosen, id];
   renderChosen(); renderList();
 }
 function renderChosen() {
   const box = $('#chosen'); box.replaceChildren();
-  if (!chosen.length) { box.innerHTML = '<span class="msg">Nothing picked. The first one you pick is the main sound; click a chip to make it main.</span>'; return; }
+  if (!chosen.length) { box.innerHTML = '<span class="msg">Nothing picked. Tick every sound you hear, background included.</span>'; return; }
   for (const id of chosen) {
-    const ch = document.createElement('span'); ch.className = `chip${id === main ? ' main' : ''}`;
-    ch.title = id === main ? 'main sound' : 'click: make main';
+    const ch = document.createElement('span'); ch.className = 'chip';
     ch.append(label(id));
-    ch.onclick = () => { main = id; renderChosen(); };
     const x = document.createElement('button'); x.textContent = '×'; x.onclick = e => { e.stopPropagation(); toggle(id); };
     ch.appendChild(x); box.appendChild(ch);
   }
@@ -354,7 +350,7 @@ function remember(ids) {
 
 // ---------- save / edit / delete ----------
 function clearForm() {
-  chosen = []; main = null; editing = null; $('#note').value = ''; $('#unsure').checked = false;
+  chosen = []; editing = null; $('#note').value = ''; $('#unsure').checked = false;
   renderChosen(); renderList(); syncEditing();
 }
 
@@ -376,7 +372,7 @@ async function save() {
   if (!sel) return msg('Set a start and end first (N for a 5 s clip at the playhead).', true);
   try {
     const clip = await api(`/api/clips/${vid}`, {method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({start: sel.in, end: sel.out, triggers: chosen, main, note: $('#note').value,
+      body: JSON.stringify({start: sel.in, end: sel.out, triggers: chosen, note: $('#note').value,
                             unsure: $('#unsure').checked, replace: editing})});
     remember(chosen);
     msg(`${editing ? 'Updated' : 'Saved'} ${fmt(clip.start)}–${fmt(clip.end)}: ${clip.triggers.map(label).join(', ') || clip.note}`);
@@ -389,7 +385,7 @@ async function save() {
 $('#save').onclick = save;
 
 function edit(c) {
-  editing = c.id; chosen = [...c.triggers]; main = c.main; $('#note').value = c.note; $('#unsure').checked = c.unsure;
+  editing = c.id; chosen = [...c.triggers]; $('#note').value = c.note; $('#unsure').checked = c.unsure;
   setSel(c.start, c.end); v.currentTime = c.start; renderChosen(); renderList(); syncEditing();
   msg(`Editing the clip at ${fmt(c.start)}: change its start/end, triggers or note, then Update. D cancels.`);
 }
@@ -401,7 +397,7 @@ function renderSaved() {
     const td1 = document.createElement('td'); td1.className = 't'; td1.textContent = `${fmt(c.start)}–${fmt(c.end)}`;
     td1.onclick = () => edit(c);
     const td2 = document.createElement('td');
-    td2.textContent = c.triggers.map(id => (id === c.main ? '★ ' : '') + label(id)).join(' · ')
+    td2.textContent = c.triggers.map(label).join(' · ')
       + (c.note ? ` — ${c.note}` : '') + (c.unsure ? ' (unsure)' : '');
     if (c.id === editing) tr.style.background = 'rgba(245,165,36,.15)';
     const td3 = document.createElement('td'); td3.style.whiteSpace = 'nowrap';
