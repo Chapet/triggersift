@@ -33,6 +33,9 @@ def taxonomy() -> dict[str, Trigger]:
     for cat, spec in data.items():
         for sub, s in spec["subs"].items():
             tid = f"{cat}.{sub}"
+            # an unquoted comma inside {label: ...} silently splits the label into extra keys
+            if set(s) != {"label", "sound"}:
+                raise ValueError(f"taxonomy.yaml: {tid} has keys {sorted(s)}; quote labels that contain commas")
             out[tid] = Trigger(tid, cat, sub, s["label"], s["sound"])
     return out
 
