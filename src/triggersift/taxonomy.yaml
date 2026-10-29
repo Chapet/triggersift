@@ -6,6 +6,7 @@ hands:
     rubbing: {label: Hand rubbing, sound: hands rubbing together}
     fluttering: {label: Finger fluttering / hand movements, sound: fingers fluttering}
     snapping: {label: Finger snapping, sound: finger snapping}
+    tapping: {label: "Hand tapping (on palms, back of hands)", sound: tapping on hands}
     lotion_hands: {label: Lotioned hand sounds, sound: wet hands rubbing}
 tapping:
   label: Tapping

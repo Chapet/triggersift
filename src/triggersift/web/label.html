@@ -355,7 +355,13 @@ function remember(ids) {
 // ---------- save / edit / delete ----------
 function clearForm() {
   chosen = []; main = null; editing = null; $('#note').value = ''; $('#unsure').checked = false;
-  renderChosen(); renderList();
+  renderChosen(); renderList(); syncEditing();
+}
+
+// The save button and the clip list show whether a saved clip is being edited
+function syncEditing() {
+  $('#save').textContent = editing ? 'Update clip' : 'Save clip';
+  renderSaved();
 }
 // D: drop the clip in progress (selection, labels, note). A saved clip being edited stays as it was saved.
 function discard() {
@@ -373,8 +379,10 @@ async function save() {
       body: JSON.stringify({start: sel.in, end: sel.out, triggers: chosen, main, note: $('#note').value,
                             unsure: $('#unsure').checked, replace: editing})});
     remember(chosen);
-    msg(`Saved ${fmt(clip.start)}–${fmt(clip.end)}: ${clip.triggers.map(label).join(', ') || clip.note}`);
+    msg(`${editing ? 'Updated' : 'Saved'} ${fmt(clip.start)}–${fmt(clip.end)}: ${clip.triggers.map(label).join(', ') || clip.note}`);
     clearForm(); sel = null; renderSel();
+    document.activeElement.blur();  // back to shortcuts (N, D…) instead of typing into the search box
+    $('#search').value = ''; renderList();
     await reloadClips();
   } catch (e) { msg(e.message, true); }
 }
@@ -382,8 +390,8 @@ $('#save').onclick = save;
 
 function edit(c) {
   editing = c.id; chosen = [...c.triggers]; main = c.main; $('#note').value = c.note; $('#unsure').checked = c.unsure;
-  setSel(c.start, c.end); v.currentTime = c.start; renderChosen(); renderList();
-  msg(`Editing the clip at ${fmt(c.start)}. Save replaces it.`);
+  setSel(c.start, c.end); v.currentTime = c.start; renderChosen(); renderList(); syncEditing();
+  msg(`Editing the clip at ${fmt(c.start)}: change its start/end, triggers or note, then Update. D cancels.`);
 }
 
 function renderSaved() {
@@ -395,10 +403,14 @@ function renderSaved() {
     const td2 = document.createElement('td');
     td2.textContent = c.triggers.map(id => (id === c.main ? '★ ' : '') + label(id)).join(' · ')
       + (c.note ? ` — ${c.note}` : '') + (c.unsure ? ' (unsure)' : '');
-    const td3 = document.createElement('td'); const del = document.createElement('button'); del.textContent = 'Delete';
+    if (c.id === editing) tr.style.background = 'rgba(245,165,36,.15)';
+    const td3 = document.createElement('td'); td3.style.whiteSpace = 'nowrap';
+    const ed = document.createElement('button'); ed.textContent = c.id === editing ? 'Editing' : 'Edit';
+    ed.disabled = c.id === editing; ed.onclick = () => edit(c);
+    const del = document.createElement('button'); del.textContent = 'Delete';
     del.onclick = async () => { if (confirm('Delete this clip?')) { await api(`/api/clips/${c.id}`, {method: 'DELETE'});
       if (editing === c.id) clearForm(); await reloadClips(); } };
-    td3.appendChild(del);
+    td3.append(ed, ' ', del);
     tr.append(td1, td2, td3); t.appendChild(tr);
   }
 }
