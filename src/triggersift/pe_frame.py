@@ -72,10 +72,9 @@ def _text_embeds(phrases: tuple[str, ...], name: str = MODEL):
         return model.text_head(out.pooler_output)
 
 
-def frame_probs(audio: np.ndarray, phrases: tuple[str, ...], name: str = MODEL) -> tuple[np.ndarray, float]:
-    """Probabilities [frames, phrases] and the frame hop in seconds."""
+def frame_embeds(audio: np.ndarray, name: str = MODEL) -> tuple[np.ndarray, float]:
+    """Frame embeddings [frames, D] (float32, one per 40 ms) and the frame hop in seconds."""
     model, transform, torch = _model(name)
-    text = _text_embeds(phrases, name)
     dac = model.config.audio_model.dac_vae_encoder
     hop = dac.hop_length / dac.sampling_rate
     out = []
@@ -88,10 +87,24 @@ def frame_probs(audio: np.ndarray, phrases: tuple[str, ...], name: str = MODEL) 
         with torch.inference_mode(), torch.autocast("cuda", dtype=torch.bfloat16):
             a = model.audio_model(inputs["input_values"], inputs.get("padding_mask"))
             emb = model.audio_head(a.last_hidden_state)[0]  # [T, D]
-            logits = (emb @ text.T.to(emb.dtype)).float() * model.logit_scale + model.logit_bias
         n = round(len(piece) / SR / hop)  # drop padding frames
-        out.append(logits.sigmoid()[:n].cpu().numpy())
+        out.append(emb[:n].float().cpu().numpy())
     return np.concatenate(out), hop
+
+
+def probs_from_embeds(emb: np.ndarray, phrases: tuple[str, ...], name: str = MODEL) -> np.ndarray:
+    """Zero-shot probabilities [frames, phrases]: frame embeddings against the text embeddings of the phrases."""
+    model, _, torch = _model(name)
+    text = _text_embeds(phrases, name).float()
+    with torch.inference_mode():
+        logits = torch.from_numpy(emb).cuda() @ text.T * model.logit_scale.float() + model.logit_bias.float()
+        return logits.sigmoid().cpu().numpy()
+
+
+def frame_probs(audio: np.ndarray, phrases: tuple[str, ...], name: str = MODEL) -> tuple[np.ndarray, float]:
+    """Probabilities [frames, phrases] and the frame hop in seconds."""
+    emb, hop = frame_embeds(audio, name)
+    return probs_from_embeds(emb, phrases, name), hop
 
 
 def _spans(mask: np.ndarray) -> list[tuple[int, int]]:
