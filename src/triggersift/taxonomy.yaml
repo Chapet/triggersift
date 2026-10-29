@@ -80,7 +80,7 @@ clicking:
     keyboard: {label: Keyboard typing / key pressing, sound: keyboard typing}
     buttons: {label: "Pressing buttons (remote, calculator, toy)", sound: pressing plastic buttons}
     controller: {label: Game controller / joystick, sound: game controller buttons and joystick clicking}
-    switches: {label: Switches / toggles (light switch, clicky switch), sound: switch clicking}
+    switches: {label: "Switches / toggles (light switch, clicky switch)", sound: switch clicking}
     mouse: {label: Mouse clicks, sound: mouse clicking}
     pen: {label: Pen clicking / writing, sound: pen clicking}
     nails_clicking: {label: Nail clicking, sound: fingernails clicking}
