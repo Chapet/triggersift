@@ -1,9 +1,9 @@
-"""Score detectors on the labeled clip bank (~/Videos/ASMR/Clips/labels.jsonl), per main category.
+"""Score detectors on the labeled clip bank (~/Videos/ASMR/Clips/labels.jsonl), per category (tapping, crinkling…).
 
     uv run python -m triggersift.bank_eval                     # PE-A-Frame zero-shot (free) + Muse Wonder (cached)
     uv run python -m triggersift.bank_eval --no-wonder
 
-Ground truth per clip = the set of main categories among all its labels (main + secondary).
+Ground truth per clip = the set of categories among all its labels (every label counts the same).
 Only categories with at least --min clips are scored. PE frame embeddings are cached in runs/bank/pe/ for training.
 """
 
