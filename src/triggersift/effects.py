@@ -85,21 +85,30 @@ def _denoise_block(x: np.ndarray, noise: np.ndarray, strength: float, floor_db: 
 
 
 def _denoise_effect(src: Path, strength: float, floor_db: float, tmp: Path, job: dict, total: float):
+    """Decode the soundtrack once, start to finish (seeking per block is not sample-exact with Opus and left a
+    click at every block join), process it in blocks with half a second of context on each side."""
     noise = _noise_profile(src, total)
+    dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(src), "-vn", "-ac", "2", "-ar", str(SR),
+                            "-f", "f32le", "-"], stdout=subprocess.PIPE)
     enc = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-y", "-i", str(src), "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "pipe:0",
          "-map", "0:v:0?", "-map", "1:a:0", "-c:v", "copy", *_audio_codec(tmp), "-shortest", str(tmp)],
         stdin=subprocess.PIPE, stderr=subprocess.PIPE)
-    start = 0.0
-    while start < total:
-        a = max(0.0, start - PAD_S)  # read a little extra on both sides, keep only the block itself
-        x = _read(src, a, BLOCK_S + (start - a) + PAD_S)
-        y = _denoise_block(x, noise, strength, floor_db)
-        lo = round((start - a) * SR)
-        y = y[:, lo:lo + round(min(BLOCK_S, total - start) * SR)]
-        enc.stdin.write(np.ascontiguousarray(y.T).tobytes())
-        start += BLOCK_S
-        job["progress"] = min(0.99, start / total)
+    block, pad = int(BLOCK_S * SR), int(PAD_S * SR)
+
+    def read() -> np.ndarray:
+        raw = dec.stdout.read(block * 8)  # 2 channels × float32
+        return np.frombuffer(raw[:len(raw) // 8 * 8], np.float32).reshape(-1, 2).T
+
+    tail, cur, done = np.zeros((2, 0), np.float32), read(), 0
+    while cur.shape[1]:
+        nxt = read()
+        y = _denoise_block(np.concatenate([tail, cur, nxt[:, :pad]], axis=1), noise, strength, floor_db)
+        enc.stdin.write(np.ascontiguousarray(y[:, tail.shape[1]:tail.shape[1] + cur.shape[1]].T).tobytes())
+        done += cur.shape[1]
+        job["progress"] = min(0.99, done / SR / total)
+        tail, cur = cur[:, -pad:], nxt
+    dec.wait()
     enc.stdin.close()
     err = enc.stderr.read().decode()
     return enc.wait(), err
