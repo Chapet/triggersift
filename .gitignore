@@ -15,3 +15,5 @@ runs/
 *.triggers.json
 .env
 data/
+
+# datasets live outside the repo: ../datasets

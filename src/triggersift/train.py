@@ -33,18 +33,27 @@ def text_features(emb: np.ndarray) -> np.ndarray:
     return np.concatenate([p.mean(axis=0), p.max(axis=0)])
 
 
-def oof(X, Y, Z, vid, C, min_pos=3):
-    """Out-of-video probabilities [clips, cats]; zero-shot where a training fold lacks positives/negatives."""
+def oof(X, Y, Z, vid, C, min_pos=3, extra=None, ours=True, w_ours=1.0):
+    """Out-of-video probabilities [clips, cats]; zero-shot where a training fold lacks positives/negatives.
+
+    extra = (X, Y) of outside clips (FSD50K) added to every training fold, never tested on.
+    ours = False trains on the outside clips only; w_ours weighs our clips against them."""
     P, fallback = np.zeros_like(Z), Counter()
     for v in np.unique(vid):
         test, train = vid == v, vid != v
+        Xs, Ys, Ws = [], [], []
+        if ours:
+            Xs.append(X[train]); Ys.append(Y[train]); Ws.append(np.full(train.sum(), w_ours))
+        if extra is not None:
+            Xs.append(extra[0]); Ys.append(extra[1]); Ws.append(np.ones(len(extra[0])))
+        Xtr, Ytr, Wtr = np.vstack(Xs), np.vstack(Ys), np.concatenate(Ws)
         for j in range(Y.shape[1]):
-            if Y[train, j].sum() < min_pos or (~Y[train, j]).sum() < min_pos:
+            if Ytr[:, j].sum() < min_pos or (~Ytr[:, j]).sum() < min_pos:
                 P[test, j] = Z[test, j]
                 fallback[j] += int(test.sum())
                 continue
             model = make_pipeline(StandardScaler(), LogisticRegression(C=C, class_weight="balanced", max_iter=3000))
-            model.fit(X[train], Y[train, j])
+            model.fit(Xtr, Ytr[:, j], logisticregression__sample_weight=Wtr)
             P[test, j] = model.predict_proba(X[test])[:, 1]
     return P, fallback
 
@@ -60,6 +69,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--min", type=int, default=10)
     ap.add_argument("--C", type=float, default=0.05, help="inverse regularization: smaller = simpler model")
+    ap.add_argument("--fsd", action="store_true", help="add FSD50K clips (python -m triggersift.fsd50k first)")
     a = ap.parse_args()
 
     clips = [c for c in load() if (CLIPS / f"{c['id']}.mp4").exists() and c["triggers"]]
@@ -81,6 +91,15 @@ def main() -> None:
         "C both": (np.hstack([X, T]), a.C),
     }
     results = {name: oof(Xv, Y, Z, vid, C) for name, (Xv, C) in variants.items()}
+    if a.fsd:
+        from . import fsd50k
+        rows = fsd50k.select()
+        femb = fsd50k.embeds(rows)
+        Xf = np.stack([features(femb[r["fname"]]) for r in rows])
+        Yf = np.array([[k in r["cats"] for k in cats] for r in rows])
+        results["E FSD50K only"] = oof(X, Y, Z, vid, a.C, extra=(Xf, Yf), ours=False)
+        results["F FSD50K + yours (x1)"] = oof(X, Y, Z, vid, a.C, extra=(Xf, Yf))
+        results["G FSD50K + yours (x10)"] = oof(X, Y, Z, vid, a.C, extra=(Xf, Yf), w_ours=10.0)
     # D: average of B's trained probability and the plain zero-shot category score
     results["D B averaged with zero-shot"] = ((results["B zero-shot phrase scores"][0] + Z) / 2, Counter())
 
