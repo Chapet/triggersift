@@ -1602,9 +1602,11 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fastapi" },
+    { name = "numpy" },
     { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "requests" },
+    { name = "scipy" },
     { name = "uvicorn" },
 ]
 
@@ -1629,6 +1631,7 @@ requires-dist = [
     { name = "fastapi", specifier = ">=0.162.0" },
     { name = "ftfy", marker = "extra == 'local'" },
     { name = "huggingface-hub", marker = "extra == 'local'" },
+    { name = "numpy", specifier = ">=2.5.4" },
     { name = "numpy", marker = "extra == 'local'" },
     { name = "python-multipart", specifier = ">=0.0.32" },
     { name = "pyyaml", specifier = ">=6.0.3" },
@@ -1636,6 +1639,7 @@ requires-dist = [
     { name = "requests", specifier = ">=2.34.2" },
     { name = "safetensors", marker = "extra == 'local'" },
     { name = "scikit-learn", marker = "extra == 'local'", specifier = ">=1.9.1" },
+    { name = "scipy", specifier = ">=1.18.1" },
     { name = "timm", marker = "extra == 'local'" },
     { name = "torch", marker = "extra == 'local'", specifier = ">=2.7", index = "https://download.pytorch.org/whl/cu128" },
     { name = "torchvision", marker = "extra == 'local'", index = "https://download.pytorch.org/whl/cu128" },

@@ -112,6 +112,7 @@
         <h3>3 · Whole soundtrack</h3>
         <label title="Processes the whole soundtrack once (seconds to a minute), then plays the processed version">Effect
           <select id="effect"><option value="">none</option></select></label>
+        <label>Compare <button id="ab" disabled title="Switch between the processed and the original sound at the same moment">Hear original</button></label>
         <label title="Presses down anything louder than this level; quiet sounds are untouched">Volume cap
           <select id="cap"><option value="off">off</option><option value="-6">−6 dB (light)</option>
             <option value="-12">−12 dB</option><option value="-18">−18 dB</option><option value="-24">−24 dB (strong)</option></select></label>
@@ -254,10 +255,10 @@ requestAnimationFrame(tick);
 // Volume cap (limiter threshold). 0 dB with ratio 20 is effectively off for normal audio.
 function applyCap() {
   const c = $('#cap').value;
-  localStorageSet('cap', c);
+  localStorageSet('cap2', c);
   if (audio) audio.limiter.threshold.value = c === 'off' ? 0 : Number(c);
 }
-$('#cap').value = localStorageGet('cap') || '-12';
+$('#cap').value = localStorageGet('cap2') || 'off';  // off by default: it would hide the spike limiter effect
 $('#cap').onchange = applyCap;
 
 let gainTarget = 1;
@@ -307,11 +308,27 @@ async function applyEffect() {
     }
   }
   $('#fxstatus').textContent = fx ? `Effect on: ${$('#effect').selectedOptions[0].text}` : '';
-  if (v.getAttribute('src') === want) return;
+  fxUrl = fx ? want : null; hearingOriginal = false;
+  $('#ab').disabled = !fx; $('#ab').textContent = 'Hear original';
+  switchSrc(want);
+}
+
+function switchSrc(url) {
+  if (v.getAttribute('src') === url) return;
   const t = v.currentTime, playing = !v.paused;
-  v.src = want;
+  v.src = url;
   v.addEventListener('loadedmetadata', () => { v.currentTime = t; if (playing) v.play(); }, {once: true});
 }
+
+// A/B: flip between the processed and the original soundtrack at the same moment
+let fxUrl = null, hearingOriginal = false;
+$('#ab').onclick = () => {
+  if (!fxUrl || !vid) return;
+  hearingOriginal = !hearingOriginal;
+  switchSrc(hearingOriginal ? `/api/videos/${vid}/media` : fxUrl);
+  $('#ab').textContent = hearingOriginal ? 'Hear effect' : 'Hear original';
+  $('#fxstatus').textContent = hearingOriginal ? 'Playing the ORIGINAL sound' : `Effect on: ${$('#effect').selectedOptions[0].text}`;
+};
 $('#effect').onchange = applyEffect;
 
 // ---------- timeline ----------
