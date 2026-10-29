@@ -44,7 +44,7 @@ mouth:
     kissing: {label: Kisses, sound: kissing sounds}
     lip_smack: {label: Lip smacking, sound: lip smacking}
     eating: {label: Eating / chewing, sound: chewing food}
-    breathing: {label: Breathing / blowing, sound: breathing into a microphone}
+    breathing: {label: "Breathing / blowing on the mic (intentional)", sound: breathing into a microphone}
     mouthing: {label: "Mouthing / silent whispering (lips and tongue, no voice)", sound: lips and tongue moving}
 voice:
   label: Voice
@@ -105,6 +105,7 @@ ambient:
 noise:
   label: Recording noise & bumps
   subs:
+    breathing: {label: "Audible breathing (unintentional: nose, sniffs, sighs)", sound: person breathing}
     thud: {label: "Muffled thud / bump (chair, desk, body)", sound: muffled thud}
     mic_bump: {label: Mic bump / handling noise, sound: microphone handling noise}
     spike: {label: Sudden loud spike / clipping, sound: loud distorted burst}
