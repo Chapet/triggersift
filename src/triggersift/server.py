@@ -16,6 +16,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from .detect import DEFAULT_MODEL, DETECTORS, Chunk, analyze_chunk, cached_chunk, chunks, duration, run_dir
+from . import effects
 from .labeling import make_routes
 from .plan import plan
 from .profile import Pref, Profile, category_labels, taxonomy
@@ -153,6 +154,7 @@ def detectors():
 @app.get("/api/removers")
 def removers():
     return [{"id": "mute", "label": "Mute (soft fade)", "unavailable": None},
+            {"id": "duck", "label": "Duck (−15 dB, sounds more natural)", "unavailable": None},
             {"id": "sam-audio", "label": "SAM Audio · Meta, local GPU",
              "unavailable": "waiting for Hugging Face access to facebook/sam-audio-large-tv"}]
 
@@ -178,6 +180,27 @@ def videos():
 @app.get("/api/videos/{vid}/media")
 def media(vid: str):
     return FileResponse(_video(vid))  # Starlette serves Range requests, so seeking works
+
+
+@app.get("/api/effects")
+def list_effects():
+    return [{"id": k, "label": label} for k, (label, _) in effects.EFFECTS.items()]
+
+
+@app.post("/api/videos/{vid}/effect/{fx}")
+def effect(vid: str, fx: str):
+    """Start (or report) the render of a soundtrack effect; poll until status is "done"."""
+    if fx not in effects.EFFECTS:
+        raise HTTPException(404, "unknown effect")
+    return effects.start(_video(vid), fx)
+
+
+@app.get("/api/videos/{vid}/effect/{fx}/media")
+def effect_media(vid: str, fx: str):
+    f = effects.output(_video(vid), fx) if fx in effects.EFFECTS else None
+    if f is None or not f.exists():
+        raise HTTPException(404, "effect not rendered yet")
+    return FileResponse(f)
 
 
 @app.post("/api/videos/{vid}/analyze")

@@ -80,6 +80,8 @@
   <select id="pick"><option value="">Choose a video…</option></select>
   <label class="opt">Detection <select id="detector"></select></label>
   <label class="opt">Removal <select id="remover"></select></label>
+  <label class="opt" title="Processes the whole soundtrack once (a few seconds to a minute), then plays the processed version">
+    Effect <select id="effect"><option value="">none</option></select></label>
   <label class="opt" title="Caps loud spikes: anything louder than this level is pressed down, quiet sounds are untouched">
     Volume cap <select id="cap">
       <option value="off">off</option><option value="-6">−6 dB (light)</option><option value="-12">−12 dB</option>
@@ -93,7 +95,7 @@
       <video id="v" controls preload="metadata"></video>
       <div id="badge" class="badge"></div>
     </div>
-    <div class="status"><span id="progress"></span><span id="summary"></span></div>
+    <div class="status"><span id="progress"></span><span id="summary"></span><span id="fxstatus"></span></div>
     <div id="tl" class="timeline"></div>
   </section>
   <aside>
@@ -130,6 +132,9 @@ async function init() {
   [taxonomy, profile] = await Promise.all([api('/api/taxonomy'), api('/api/profile')]);
   await fillOptions('#detector', '/api/detectors', 'detector', x => x.default);
   await fillOptions('#remover', '/api/removers', 'remover', x => x.id === 'mute');
+  for (const x of await api('/api/effects')) $('#effect').add(new Option(x.label, x.id));
+  const savedFx = localStorageGet('effect');
+  if (savedFx && [...$('#effect').options].some(o => o.value === savedFx)) $('#effect').value = savedFx;
   detector = $('#detector').value; remover = $('#remover').value;
   for (const x of await api('/api/videos')) $('#pick').add(new Option(x.name, x.id));
   const last = localStorageGet('vid');
@@ -145,6 +150,7 @@ async function choose(id) {
   localStorageSet('vid', id);
   if (!id) return;
   v.src = `/api/videos/${id}/media`;
+  applyEffect();
   await kick(0);
   await refresh();
   clearInterval(poll);
@@ -213,7 +219,7 @@ function tick() {
       flash(`Skipped ${fmt(skip.end - skip.start)} · ${names(skip.triggers)}`, 'skip');
     }
     const mute = stepAt(t + 0.05, ['mute', 'filter']);
-    setGain(mute ? 0 : 1);
+    setGain(mute ? (remover === 'duck' ? 0.18 : 0) : 1);  // duck = −15 dB
     if (mute) flash(`Muting ${names(mute.triggers)}`, 'mute', true);
     else if (audio && audio.limiter.reduction < -6) flash(`Loud spike capped (${Math.round(audio.limiter.reduction)} dB)`, 'mute', true);
   } else setGain(1);
@@ -255,6 +261,34 @@ $('#sift').onclick = () => {
   $('#sift').textContent = sift ? 'ON' : 'OFF';
   $('#sift').classList.toggle('on', sift);
 };
+
+// ---------- effect: switch to a processed copy of the soundtrack ----------
+let fxToken = 0;
+async function applyEffect() {
+  const fx = $('#effect').value, token = ++fxToken;
+  localStorageSet('effect', fx);
+  if (!vid) return;
+  const want = fx ? `/api/videos/${vid}/effect/${fx}/media` : `/api/videos/${vid}/media`;
+  if (fx) {
+    // render once (cached on the server), keep playing the original meanwhile
+    for (;;) {
+      let job;
+      try { job = await api(`/api/videos/${vid}/effect/${fx}`, {method: 'POST'}); }
+      catch (e) { $('#fxstatus').textContent = `Effect failed: ${e.message}`; return; }
+      if (token !== fxToken) return;  // the user picked something else meanwhile
+      if (job.status === 'error') { $('#fxstatus').textContent = `Effect failed: ${job.error || ''}`; return; }
+      if (job.status === 'done') break;
+      $('#fxstatus').textContent = `Preparing effect… ${Math.round(job.progress * 100)}%`;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  $('#fxstatus').textContent = fx ? `Effect on: ${$('#effect').selectedOptions[0].text}` : '';
+  if (v.getAttribute('src') === want) return;
+  const t = v.currentTime, playing = !v.paused;
+  v.src = want;
+  v.addEventListener('loadedmetadata', () => { v.currentTime = t; if (playing) v.play(); }, {once: true});
+}
+$('#effect').onchange = applyEffect;
 
 // ---------- timeline ----------
 function renderTimeline() {
