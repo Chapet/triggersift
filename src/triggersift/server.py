@@ -188,18 +188,24 @@ def list_effects():
     return [{"id": k, "label": label} for k, (label, _) in effects.EFFECTS.items()]
 
 
+def _fx(chain: str) -> str:
+    try:
+        return effects.parse(chain)
+    except (KeyError, ValueError) as e:
+        raise HTTPException(404, f"unknown effect combination: {e}")
+
+
 @app.post("/api/videos/{vid}/effect/{fx}")
 def effect(vid: str, fx: str):
-    """Start (or report) the render of a soundtrack effect; poll until status is "done"."""
-    if fx not in effects.EFFECTS:
-        raise HTTPException(404, "unknown effect")
-    return effects.start(_video(vid), fx)
+    """Start (or report) the render of a soundtrack effect, or several combined ("denoise,limiter"); poll until
+    status is "done"."""
+    return effects.start(_video(vid), _fx(fx))
 
 
 @app.get("/api/videos/{vid}/effect/{fx}/media")
 def effect_media(vid: str, fx: str):
-    f = effects.output(_video(vid), fx) if fx in effects.EFFECTS else None
-    if f is None or not f.exists():
+    f = effects.output(_video(vid), _fx(fx))
+    if not f.exists():
         raise HTTPException(404, "effect not rendered yet")
     return FileResponse(f)
 
@@ -223,7 +229,7 @@ def sam_render(vid: str, model: str = DEFAULT_MODEL, fx: str = ""):
     with a.lock:
         events = sorted((e for evs in a.events.values() for e in evs), key=lambda e: e.start)
     steps = plan(events, _profile(), can_filter=True)
-    return samaudio.start(a.path, steps, a.duration, fx or None)
+    return samaudio.start(a.path, steps, a.duration, _fx(fx) if fx else None)
 
 
 @app.get("/api/videos/{vid}/samaudio/{key}/media")

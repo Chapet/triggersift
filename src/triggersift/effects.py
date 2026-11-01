@@ -28,6 +28,18 @@ EFFECTS = {
 
 _jobs: dict[tuple[str, str], dict] = {}
 _lock = threading.Lock()
+EXCLUSIVE = [{"denoise", "denoise_strong"}]  # strengths of the same effect: pick one
+
+
+def parse(chain: str) -> str:
+    """"limiter,denoise" → "denoise,limiter": effects combine in a fixed order (our own processing first, then the
+    ffmpeg filters), so the same set always gives the same render. Raises KeyError / ValueError."""
+    ids = {x for x in chain.split(",") if x}
+    if not ids or ids - EFFECTS.keys():
+        raise KeyError(chain)
+    if any(len(ids & g) > 1 for g in EXCLUSIVE):
+        raise ValueError("pick one strength of the same effect")
+    return ",".join(k for k in EFFECTS if k in ids)
 
 
 def output(src: Path, fx: str) -> Path:
@@ -83,15 +95,21 @@ def _denoise_block(x: np.ndarray, noise: np.ndarray, strength: float, floor_db: 
     return y[:, :x.shape[1]].astype(np.float32)
 
 
-def _denoise_effect(src: Path, strength: float, floor_db: float, tmp: Path, job: dict, total: float):
-    """Decode the soundtrack once, start to finish (seeking per block is not sample-exact with Opus and left a
-    click at every block join), process it in blocks with half a second of context on each side."""
-    noise = _noise_profile(src, total)
+def _own_chain(src: Path, stages: list[tuple], af: str, tmp: Path, job: dict, total: float):
+    """Our own processing stages, then the ffmpeg filters (af) in the encoder. Decodes the soundtrack once, start to
+    finish (seeking per block is not sample-exact with Opus and left a click at every block join), processes it in
+    blocks with half a second of context on each side."""
+    procs = []
+    for spec in stages:
+        if spec[0] == "denoise":
+            noise = _noise_profile(src, total)
+            procs.append(lambda x, n=noise, st=spec[1], fl=spec[2]: _denoise_block(x, n, st, fl))
     dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(src), "-vn", "-ac", "2", "-ar", str(SR),
                             "-f", "f32le", "-"], stdout=subprocess.PIPE)
     enc = subprocess.Popen(
         ["ffmpeg", "-v", "error", "-y", "-i", str(src), "-f", "f32le", "-ar", str(SR), "-ac", "2", "-i", "pipe:0",
-         "-map", "0:v:0?", "-map", "1:a:0", "-c:v", "copy", *_audio_codec(tmp), "-shortest", str(tmp)],
+         "-map", "0:v:0?", "-map", "1:a:0", "-c:v", "copy", *(["-af", af] if af else []), *_audio_codec(tmp),
+         "-shortest", str(tmp)],
         stdin=subprocess.PIPE, stderr=subprocess.PIPE)
     block, pad = int(BLOCK_S * SR), int(PAD_S * SR)
 
@@ -102,7 +120,9 @@ def _denoise_effect(src: Path, strength: float, floor_db: float, tmp: Path, job:
     tail, cur, done = np.zeros((2, 0), np.float32), read(), 0
     while cur.shape[1]:
         nxt = read()
-        y = _denoise_block(np.concatenate([tail, cur, nxt[:, :pad]], axis=1), noise, strength, floor_db)
+        y = np.concatenate([tail, cur, nxt[:, :pad]], axis=1)
+        for f in procs:
+            y = f(y)
         enc.stdin.write(np.ascontiguousarray(y[:, tail.shape[1]:tail.shape[1] + cur.shape[1]].T).tobytes())
         done += cur.shape[1]
         job["progress"] = min(0.99, done / SR / total)
@@ -117,12 +137,14 @@ def _render(src: Path, fx: str, job: dict) -> None:
     out = output(src, fx)
     tmp = out.with_name(out.stem + ".part" + out.suffix)
     total = duration(src)
-    spec = EFFECTS[fx][1]
+    specs = [EFFECTS[k][1] for k in fx.split(",")]
+    own = [x for x in specs if isinstance(x, tuple)]
+    af = ",".join(x for x in specs if isinstance(x, str))
     try:
-        if isinstance(spec, tuple):
-            code, err = _denoise_effect(src, spec[1], spec[2], tmp, job, total)
+        if own:
+            code, err = _own_chain(src, own, af, tmp, job, total)
         else:
-            code, err = _ffmpeg_effect(src, spec, tmp, job, total)
+            code, err = _ffmpeg_effect(src, af, tmp, job, total)
     except Exception as e:  # report in the UI instead of hanging at "Preparing…"
         code, err = 1, str(e)
     if code == 0:
@@ -134,8 +156,7 @@ def _render(src: Path, fx: str, job: dict) -> None:
 
 
 def start(src: Path, fx: str) -> dict:
-    if fx not in EFFECTS:
-        raise KeyError(fx)
+    fx = parse(fx)
     OUT.mkdir(parents=True, exist_ok=True)
     key = (str(src), fx)
     with _lock:
