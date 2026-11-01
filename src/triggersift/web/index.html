@@ -119,7 +119,7 @@
         <p>Always on, everywhere in the video, whatever was detected.</p>
       </div>
     </div>
-    <div class="status"><span id="progress"></span><span id="summary"></span><span id="fxstatus"></span></div>
+    <div class="status"><span id="progress"></span><span id="summary"></span><span id="fxstatus"></span><span id="samstatus"></span></div>
     <div id="tl" class="timeline"></div>
   </section>
   <aside>
@@ -137,6 +137,8 @@ const COLORS = ['#8e7cf0', '#4cc38a', '#f5a524', '#3e9bf0', '#e5484d', '#d864d8'
                 '#f0743e', '#7fb0ff', '#a3e635', '#f472b6', '#94a3b8', '#fb923c', '#22d3ee'];
 let taxonomy = {}, profile = {}, vid = null, st = null, sift = true, poll = null;
 let detector = null, remover = 'mute';
+let sam = {sig: null, url: null};     // current SAM Audio render (sig = what it was made for)
+let fxUrl = null, hearingOriginal = false;
 let overrideSkip = null;          // key of a skip the user seeked into on purpose: let it play
 let audio = null;                 // {ctx, gain}
 
@@ -171,6 +173,7 @@ function localStorageSet(k, x) { try { localStorage.setItem(k, x); } catch {} }
 
 async function choose(id) {
   vid = id; st = null; overrideSkip = null;
+  sam = {sig: null, url: null}; hearingOriginal = false;
   localStorageSet('vid', id);
   if (!id) return;
   v.src = `/api/videos/${id}/media`;
@@ -202,14 +205,20 @@ $('#detector').onchange = async e => {
   detector = e.target.value; localStorageSet('detector', detector);
   st = null; await kick(v.currentTime); await refresh(); clearInterval(poll); poll = setInterval(refresh, 2000);
 };
-$('#remover').onchange = async e => { remover = e.target.value; localStorageSet('remover', remover); await refresh(); };
+$('#remover').onchange = async e => {
+  remover = e.target.value; localStorageSet('remover', remover);
+  await refresh(); updateSource();
+};
 
 async function refresh() {
   if (!vid) return;
   st = await api(`/api/videos/${vid}/state?model=${detector}&remover=${remover}`);
   renderTimeline(); renderProfile(); renderStatus();
-  if (st.chunks.every(c => c.status === 'done' || c.status === 'error')) clearInterval(poll);
+  if (analysisDone()) clearInterval(poll);
+  ensureSam();
 }
+
+const analysisDone = () => st && st.chunks.every(c => c.status === 'done' || c.status === 'error');
 
 $('#pick').onchange = e => choose(e.target.value);
 v.addEventListener('play', () => { ensureAudio(); kick(v.currentTime); });
@@ -242,9 +251,13 @@ function tick() {
       v.currentTime = skip.end;
       flash(`Skipped ${fmt(skip.end - skip.start)} · ${names(skip.triggers)}`, 'skip');
     }
-    const mute = stepAt(t + 0.05, ['mute', 'filter']);
+    // playing the SAM Audio render: its "filter" sections are already cleaned, so only plain mutes remain
+    const playingSam = sam.url && v.getAttribute('src') === sam.url;
+    const mute = stepAt(t + 0.05, playingSam ? ['mute'] : ['mute', 'filter']);
     setGain(mute ? (remover === 'duck' ? 0.18 : 0) : 1);  // duck = −15 dB
+    const removed = playingSam && stepAt(t, ['filter']);
     if (mute) flash(`Muting ${names(mute.triggers)}`, 'mute', true);
+    else if (removed) flash(`Removed by SAM Audio: ${names(removed.triggers)}`, 'mute', true);
     else if (audio && audio.limiter.reduction < -6) flash(`Loud spike capped (${Math.round(audio.limiter.reduction)} dB)`, 'mute', true);
   } else setGain(1);
   if (st) movePlayhead();
@@ -309,8 +322,46 @@ async function applyEffect() {
   }
   $('#fxstatus').textContent = fx ? `Effect on: ${$('#effect').selectedOptions[0].text}` : '';
   fxUrl = fx ? want : null; hearingOriginal = false;
-  $('#ab').disabled = !fx; $('#ab').textContent = 'Hear original';
-  switchSrc(want);
+  $('#ab').textContent = 'Hear original';
+  updateSource();
+  ensureSam();  // a SAM Audio render is built on top of the selected effect
+}
+
+// Which soundtrack plays: original < effect < SAM Audio render (built on the effect), unless comparing
+function updateSource() {
+  if (!vid) return;
+  $('#ab').disabled = !(fxUrl || (remover === 'sam-audio' && sam.url));
+  const url = hearingOriginal ? `/api/videos/${vid}/media`
+    : remover === 'sam-audio' && sam.url ? sam.url : fxUrl || `/api/videos/${vid}/media`;
+  switchSrc(url);
+}
+
+// ---------- SAM Audio: remove the short dislikes instead of muting them ----------
+async function ensureSam() {
+  if (remover !== 'sam-audio' || !st || !vid) { $('#samstatus').textContent = ''; return; }
+  if (!analysisDone()) { $('#samstatus').textContent = 'SAM Audio starts when the analysis is complete.'; return; }
+  const fx = $('#effect').value;
+  const filters = st.plan.filter(s => s.action === 'filter');
+  const sig = JSON.stringify([vid, detector, fx, filters.map(s => [s.start, s.end, s.triggers])]);
+  if (sig === sam.sig) return;
+  sam = {sig, url: null};
+  updateSource();
+  if (!filters.length) { $('#samstatus').textContent = 'SAM Audio: nothing to remove (no short dislikes found).'; return; }
+  for (;;) {
+    let job;
+    try { job = await api(`/api/videos/${vid}/samaudio?model=${detector}&fx=${fx}`, {method: 'POST'}); }
+    catch (e) { $('#samstatus').textContent = `SAM Audio failed: ${e.message}`; return; }
+    if (sam.sig !== sig) return;  // the plan or the video changed meanwhile: a newer request takes over
+    if (job.status === 'error') { $('#samstatus').textContent = `SAM Audio failed: ${job.error || ''}`; return; }
+    if (job.status === 'done') break;
+    $('#samstatus').textContent = `SAM Audio is removing ${filters.length} sections… ${Math.round(job.progress * 100)}% ` +
+      '(muted meanwhile)';
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  const job = await api(`/api/videos/${vid}/samaudio?model=${detector}&fx=${fx}`, {method: 'POST'});
+  sam.url = `/api/videos/${vid}/samaudio/${job.key}/media`;
+  $('#samstatus').textContent = `SAM Audio removed ${filters.length} sections.`;
+  updateSource();
 }
 
 function switchSrc(url) {
@@ -321,13 +372,13 @@ function switchSrc(url) {
 }
 
 // A/B: flip between the processed and the original soundtrack at the same moment
-let fxUrl = null, hearingOriginal = false;
 $('#ab').onclick = () => {
-  if (!fxUrl || !vid) return;
+  if (!vid) return;
   hearingOriginal = !hearingOriginal;
-  switchSrc(hearingOriginal ? `/api/videos/${vid}/media` : fxUrl);
-  $('#ab').textContent = hearingOriginal ? 'Hear effect' : 'Hear original';
-  $('#fxstatus').textContent = hearingOriginal ? 'Playing the ORIGINAL sound' : `Effect on: ${$('#effect').selectedOptions[0].text}`;
+  updateSource();
+  $('#ab').textContent = hearingOriginal ? 'Hear processed' : 'Hear original';
+  $('#fxstatus').textContent = hearingOriginal ? 'Playing the ORIGINAL sound'
+    : fxUrl ? `Effect on: ${$('#effect').selectedOptions[0].text}` : '';
 };
 $('#effect').onchange = applyEffect;
 

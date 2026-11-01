@@ -178,3 +178,13 @@ def detect_chunk(path: Path, start: float, length: float) -> tuple[list[Event], 
             torch.cuda.empty_cache()  # hand memory back between chunks
     return (category_events(probs, hop, ids, start),
             {"seconds": round(time.monotonic() - t0, 2), "usage": None, "model": MODEL})
+
+
+def unload() -> None:
+    """Free the GPU (SAM Audio needs ~13 GB of the 16). The model reloads on the next analysis (~7 s)."""
+    import gc
+    _model.cache_clear()
+    _text_embeds.cache_clear()
+    gc.collect()
+    import torch
+    torch.cuda.empty_cache()
