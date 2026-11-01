@@ -298,6 +298,7 @@ $('#sift').onclick = () => {
   $('#sift').textContent = sift ? 'ON' : 'OFF';
   $('#sift').classList.toggle('on', sift);
   if (st) renderStatus();
+  updateSource();  // the SAM Audio render is part of your cut: OFF plays the unsifted soundtrack
 };
 
 // ---------- effect: switch to a processed copy of the soundtrack ----------
@@ -330,9 +331,10 @@ async function applyEffect() {
 // Which soundtrack plays: original < effect < SAM Audio render (built on the effect), unless comparing
 function updateSource() {
   if (!vid) return;
-  $('#ab').disabled = !(fxUrl || (remover === 'sam-audio' && sam.url));
+  const useSam = sift && remover === 'sam-audio' && sam.url;
+  $('#ab').disabled = !(fxUrl || useSam);
   const url = hearingOriginal ? `/api/videos/${vid}/media`
-    : remover === 'sam-audio' && sam.url ? sam.url : fxUrl || `/api/videos/${vid}/media`;
+    : useSam ? sam.url : fxUrl || `/api/videos/${vid}/media`;
   switchSrc(url);
 }
 
