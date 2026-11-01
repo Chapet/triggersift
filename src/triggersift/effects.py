@@ -13,22 +13,35 @@ from pathlib import Path
 import numpy as np
 from scipy.signal import istft, stft
 
+from . import dynamics
 from .detect import _file_id, duration
 
 OUT = Path("runs/fx")
 SR = 48_000
 
-# id → (label, ffmpeg audio filter, or ("denoise", strength, floor dB) for our own processing)
+# id → (label, ffmpeg audio filter, or a tuple for our own processing: ("denoise", strength, floor dB) or
+# ("fn", function on a [2, samples] block)). Combined in this order: own processing first, then the ffmpeg filters.
 EFFECTS = {
     "denoise": ("Background noise reduction (fan, hiss) · medium", ("denoise", 1.5, -20)),
     "denoise_strong": ("Background noise reduction · strong", ("denoise", 2.0, -25)),
-    "limiter": ("Spike limiter (lookahead, −12 dB)", "alimiter=limit=0.25:attack=5:release=50:level=disabled"),
-    "declick": ("Mouth-click & crackle removal (subtle)", "adeclick"),
+    "thuds": ("Thud filter: takes the boom out of desk knocks & mic bumps", ("fn", dynamics.thuds)),
+    "clicks": ("Click tamer: sharp mouth clicks & crackles", ("fn", dynamics.clicks)),
+    "spikes": ("Spike tamer · gentle: sudden pops louder than their surroundings", ("fn", lambda x: dynamics.tame_spikes(x, 12.0))),
+    "spikes_strong": ("Spike tamer · strong", ("fn", lambda x: dynamics.tame_spikes(x, 9.0))),
+    "balance": ("Ear-balance guard: pulls one-sided sounds toward the middle", ("fn", dynamics.ear_balance)),
+    "gaps": ("Silence cleaner: quieter background between triggers", ("fn", dynamics.clean_gaps)),
+    "deess": ("Sibilance softener: sharp \"s\" in whispers", "deesser=i=0.5:m=0.5:f=0.5"),
+    "compress": ("Gentle compression: loud moments down, quiet ones untouched",
+                 "acompressor=threshold=0.03:ratio=3:attack=10:release=250:knee=4:makeup=1"),
+    "warm": ("Tone: warmer (softer highs)", "highshelf=f=6000:g=-5"),
+    "unboom": ("Tone: less boomy (less low rumble)", "highpass=f=70,lowshelf=f=200:g=-4"),
+    "limiter": ("Peak limiter (absolute, −12 dBFS)", "alimiter=limit=0.25:attack=5:release=50:level=disabled"),
+    "declick": ("Tiny-click repair (adeclick; doesn't catch pops)", "adeclick"),
 }
 
 _jobs: dict[tuple[str, str], dict] = {}
 _lock = threading.Lock()
-EXCLUSIVE = [{"denoise", "denoise_strong"}]  # strengths of the same effect: pick one
+EXCLUSIVE = [{"denoise", "denoise_strong"}, {"spikes", "spikes_strong"}]  # strengths of the same effect: pick one
 
 
 def parse(chain: str) -> str:
@@ -66,7 +79,7 @@ def _ffmpeg_effect(src: Path, af: str, tmp: Path, job: dict, total: float) -> tu
 
 # ---------- noise reduction: spectral subtraction against the video's steady background ----------
 NPERSEG, NOVERLAP = 2048, 1536
-BLOCK_S, PAD_S = 30.0, 0.5
+BLOCK_S, PAD_S = 30.0, 4.0  # context: the spike tamer looks 4 s around every moment
 
 
 def _read(src: Path, start: float, length: float) -> np.ndarray:
@@ -98,12 +111,14 @@ def _denoise_block(x: np.ndarray, noise: np.ndarray, strength: float, floor_db: 
 def _own_chain(src: Path, stages: list[tuple], af: str, tmp: Path, job: dict, total: float):
     """Our own processing stages, then the ffmpeg filters (af) in the encoder. Decodes the soundtrack once, start to
     finish (seeking per block is not sample-exact with Opus and left a click at every block join), processes it in
-    blocks with half a second of context on each side."""
+    blocks with 4 s of context on each side."""
     procs = []
     for spec in stages:
         if spec[0] == "denoise":
             noise = _noise_profile(src, total)
             procs.append(lambda x, n=noise, st=spec[1], fl=spec[2]: _denoise_block(x, n, st, fl))
+        else:
+            procs.append(spec[1])
     dec = subprocess.Popen(["ffmpeg", "-v", "error", "-i", str(src), "-vn", "-ac", "2", "-ar", str(SR),
                             "-f", "f32le", "-"], stdout=subprocess.PIPE)
     enc = subprocess.Popen(
