@@ -176,9 +176,28 @@ def _render(src: Path, fx: str, job: dict) -> None:
         job.update(status="error", error=err[-300:])
 
 
+CACHE_MAX_BYTES = 4 * 2**30
+
+
+def prune() -> None:
+    """Keep the render cache (effects + SAM Audio, ~60 MB per render of a 20 min video) under CACHE_MAX_BYTES by
+    deleting the renders used least recently (start() touches a render whenever it is asked for again)."""
+    files = sorted((p for p in OUT.glob("*.*") if p.is_file() and ".part" not in p.name), key=lambda p: p.stat().st_mtime)
+    total = sum(p.stat().st_size for p in files)
+    for p in files:
+        if total <= CACHE_MAX_BYTES:
+            break
+        total -= p.stat().st_size
+        p.unlink(missing_ok=True)
+
+
 def start(src: Path, fx: str) -> dict:
     fx = parse(fx)
     OUT.mkdir(parents=True, exist_ok=True)
+    if output(src, fx).exists():
+        output(src, fx).touch()  # recently used: pruned last
+    else:
+        prune()
     key = (str(src), fx)
     with _lock:
         job = _jobs.get(key)

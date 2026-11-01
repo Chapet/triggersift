@@ -165,7 +165,7 @@ async function init() {
   const savedFx = (localStorageGet('effects') || '').split(',');
   for (const x of await api('/api/effects')) {
     const l = document.createElement('label');
-    l.innerHTML = `<input type="checkbox" value="${x.id}"${savedFx.includes(x.id) ? ' checked' : ''}> ` +
+    l.innerHTML = `<input type="checkbox" value="${x.id}" data-group="${x.group || ''}"${savedFx.includes(x.id) ? ' checked' : ''}> ` +
       `<span class="fxname">${x.label}</span> <span class="cost" data-cost="${x.cost}" data-base="${x.base}"></span>`;
     $('#effects').append(l);
   }
@@ -224,6 +224,7 @@ async function refresh() {
   st = await api(`/api/videos/${vid}/state?model=${detector}&remover=${remover}`);
   renderTimeline(); renderProfile(); renderStatus();
   if (analysisDone()) clearInterval(poll);
+  else if (!st.chunks.some(c => c.status === 'busy')) kick(v.currentTime);  // e.g. the server was restarted
   ensureSam();
 }
 
@@ -343,9 +344,9 @@ async function applyEffect() {
     for (;;) {
       let job;
       try { job = await api(`/api/videos/${vid}/effect/${fx}`, {method: 'POST'}); }
-      catch (e) { $('#fxstatus').textContent = `Effect failed: ${e.message}`; return; }
+      catch (e) { return fxFailed(token, e.message); }
       if (token !== fxToken) return;  // the user picked something else meanwhile
-      if (job.status === 'error') { $('#fxstatus').textContent = `Effect failed: ${job.error || ''}`; return; }
+      if (job.status === 'error') return fxFailed(token, job.error || '');
       if (job.status === 'done') break;
       $('#fxstatus').textContent = `Preparing effect… ${Math.round(job.progress * 100)}%`;
       await new Promise(r => setTimeout(r, 1000));
@@ -356,6 +357,14 @@ async function applyEffect() {
   $('#ab').textContent = 'Hear original';
   updateSource();
   ensureSam();  // a SAM Audio render is built on top of the selected effect
+}
+
+function fxFailed(token, msg) {
+  if (token !== fxToken) return;
+  $('#fxstatus').textContent = `Effect failed: ${msg}`;
+  fxUrl = null; hearingOriginal = false;
+  $('#ab').textContent = 'Hear original';
+  updateSource();
 }
 
 // Which soundtrack plays: original < effect < SAM Audio render (built on the effect), unless comparing
@@ -412,11 +421,16 @@ $('#ab').onclick = () => {
   $('#fxstatus').textContent = hearingOriginal ? 'Playing the ORIGINAL sound'
     : fxUrl ? `Effect on: ${fxNames()}` : '';
 };
+let fxDebounce = null;
 $('#effects').onchange = e => {
   // two strengths of the same effect don't combine: ticking one unticks the other
-  if (e.target.checked && e.target.value.startsWith('denoise'))
-    for (const b of fxBoxes()) if (b !== e.target && b.value.startsWith('denoise')) b.checked = false;
-  applyEffect();
+  const g = e.target.dataset.group;
+  if (e.target.checked && g) for (const b of fxBoxes()) if (b !== e.target && b.dataset.group === g) b.checked = false;
+  showCosts();
+  // wait until the ticking stops: otherwise every intermediate combination gets rendered
+  clearTimeout(fxDebounce);
+  $('#fxstatus').textContent = 'Effects changed…';
+  fxDebounce = setTimeout(applyEffect, 1200);
 };
 
 // ---------- timeline ----------
