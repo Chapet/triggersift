@@ -41,6 +41,12 @@ EFFECTS = {
 
 _jobs: dict[tuple[str, str], dict] = {}
 _lock = threading.Lock()
+# processing time, seconds per minute of video (measured 2026-11-01 on 2 min of 0CwxN5mx7l4, Ryzen 7 9700X), on top
+# of BASE_COST for decoding + re-encoding the soundtrack once, whatever the number of effects
+BASE_COST = 0.3
+COST = {"denoise": 1.35, "denoise_strong": 1.35, "thuds": 0.08, "clicks": 0.08, "spikes": 0.02, "spikes_strong": 0.02,
+        "balance": 0.02, "gaps": 0.02, "deess": 0.03, "compress": 0.04, "warm": 0.01, "unboom": 0.01, "limiter": 0.03,
+        "declick": 0.77}
 EXCLUSIVE = [{"denoise", "denoise_strong"}, {"spikes", "spikes_strong"}]  # strengths of the same effect: pick one
 
 

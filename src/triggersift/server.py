@@ -185,7 +185,8 @@ def media(vid: str):
 
 @app.get("/api/effects")
 def list_effects():
-    return [{"id": k, "label": label} for k, (label, _) in effects.EFFECTS.items()]
+    return [{"id": k, "label": label, "cost": effects.COST.get(k, 0.1), "base": effects.BASE_COST}
+            for k, (label, _) in effects.EFFECTS.items()]
 
 
 def _fx(chain: str) -> str:

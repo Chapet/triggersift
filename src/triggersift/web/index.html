@@ -16,6 +16,8 @@
   header .navbtn { margin-left: auto; white-space: nowrap; }
   .panel { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 10px; }
   .fxlist { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 2px 10px; margin-bottom: 6px; }
+  .fxlist .cost, .fxcost { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .fxcost { margin-bottom: 6px; }
   .fxlist label { display: flex; gap: 6px; align-items: center; font-weight: normal; }
   .panel .group { background: var(--panel); border-radius: 8px; padding: 10px 12px; min-width: 0; }
   .panel h3 { font-size: 13px; margin: 0 0 8px; display: flex; align-items: center; gap: 8px; }
@@ -113,6 +115,7 @@
       <div class="group">
         <h3>3 · Whole soundtrack</h3>
         <div id="effects" class="fxlist" title="Processes the whole soundtrack once (seconds to a minute), then plays the processed version. Tick several to combine them."></div>
+        <div id="fxcost" class="fxcost"></div>
         <label>Compare <button id="ab" disabled title="Switch between the processed and the original sound at the same moment">Hear original</button></label>
         <label title="Presses down anything louder than this level; quiet sounds are untouched">Volume cap
           <select id="cap"><option value="off">off</option><option value="-6">−6 dB (light)</option>
@@ -162,9 +165,11 @@ async function init() {
   const savedFx = (localStorageGet('effects') || '').split(',');
   for (const x of await api('/api/effects')) {
     const l = document.createElement('label');
-    l.innerHTML = `<input type="checkbox" value="${x.id}"${savedFx.includes(x.id) ? ' checked' : ''}> ${x.label}`;
+    l.innerHTML = `<input type="checkbox" value="${x.id}"${savedFx.includes(x.id) ? ' checked' : ''}> ` +
+      `<span class="fxname">${x.label}</span> <span class="cost" data-cost="${x.cost}" data-base="${x.base}"></span>`;
     $('#effects').append(l);
   }
+  showCosts();
   detector = $('#detector').value; remover = $('#remover').value;
   for (const x of await api('/api/videos')) $('#pick').add(new Option(x.name, x.id));
   const last = localStorageGet('vid');
@@ -308,9 +313,27 @@ $('#sift').onclick = () => {
 // ---------- effects: switch to a processed copy of the soundtrack (several ticked = combined in one render) ----------
 const fxBoxes = () => [...document.querySelectorAll('#effects input')];
 const fxChain = () => fxBoxes().filter(b => b.checked).map(b => b.value).join(',');
-const fxNames = () => fxBoxes().filter(b => b.checked).map(b => b.parentElement.textContent.trim()).join(' + ');
+const fxNames = () => fxBoxes().filter(b => b.checked).map(b => b.parentElement.querySelector('.fxname').textContent).join(' + ');
+
+// render time of each effect for this video (per 20 min until the video's length is known), and of the ticked set
+function showCosts() {
+  const known = isFinite(v.duration) && v.duration > 0;
+  const mins = (known ? v.duration : 1200) / 60;
+  const fmtCost = s => s < 1 ? 'instant' : `~${Math.round(s)} s`;
+  let total = 0, any = false;
+  for (const c of document.querySelectorAll('#effects .cost')) {
+    const s = c.dataset.cost * mins;
+    c.textContent = `· ${fmtCost(s)}`;
+    if (c.parentElement.querySelector('input').checked) { total += s; any = true; }
+  }
+  const base = (document.querySelector('#effects .cost')?.dataset.base || 0) * mins;
+  $('#fxcost').textContent = any ? `Render time for the ticked effects: ${fmtCost(base + total)}` +
+    `${known ? '' : ' per 20 min of video'}, once; cached afterwards.` : '';
+}
+v.addEventListener('loadedmetadata', showCosts);
 let fxToken = 0;
 async function applyEffect() {
+  showCosts();
   const fx = fxChain(), token = ++fxToken;
   localStorageSet('effects', fx);
   if (!vid) return;
