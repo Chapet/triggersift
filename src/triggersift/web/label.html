@@ -59,6 +59,8 @@
   .list { overflow: auto; flex: 1; min-height: 160px; border-top: 1px solid var(--line); padding-top: 4px; }
   .list .cat { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .5px; margin: 8px 0 2px; }
   .list label { display: flex; gap: 6px; align-items: center; padding: 2px 0; cursor: pointer; }
+  .list label.cls { flex-wrap: wrap; }
+  .list label.cls small { color: var(--muted); font-size: 11px; flex-basis: 100%; padding-left: 22px; margin-top: -2px; }
   .row { display: flex; gap: 8px; align-items: center; }
   textarea { width: 100%; resize: vertical; min-height: 34px; }
   .saved { margin-top: 16px; }
@@ -135,7 +137,7 @@ let chosen = [];                      // trigger ids heard in the clip, all equa
 let editing = null;                   // id of the clip being edited
 let loop = false;
 const fmt = t => t == null ? '–' : `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, '0')}`;
-const label = id => { const c = id.split('.')[0]; return `${taxonomy[c]?.label} › ${taxonomy[c]?.subs[id] || id}`; };
+const label = id => { const c = id.split('.')[0]; return c === id ? taxonomy[c]?.label || id : `${taxonomy[c]?.label} › ${taxonomy[c]?.subs[id] || id}`; };
 const store = { get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
                 set(k, x) { try { localStorage.setItem(k, JSON.stringify(x)); } catch {} } };
 
@@ -303,16 +305,19 @@ window.addEventListener('mouseup', e => {
 function renderList() {
   const q = $('#search').value.trim().toLowerCase();
   const box = $('#list'); box.replaceChildren();
-  for (const [c, spec] of Object.entries(taxonomy)) {
-    const items = Object.entries(spec.subs).filter(([id, l]) => !q || `${spec.label} ${l} ${id}`.toLowerCase().includes(q));
-    if (!items.length) continue;
-    const h = document.createElement('div'); h.className = 'cat'; h.textContent = spec.label; box.appendChild(h);
-    for (const [id, l] of items) {
-      const lab = document.createElement('label');
-      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = chosen.includes(id);
-      cb.onchange = () => toggle(id);
-      lab.append(cb, l); box.appendChild(lab);
+  // sound classes under their group heading; search also matches what a class covers ("glass" → Sharp tapping)
+  let group = null;
+  for (const [id, spec] of Object.entries(taxonomy)) {
+    if (q && !`${spec.group} ${spec.label} ${spec.covers} ${id}`.toLowerCase().includes(q)) continue;
+    if (spec.group !== group) {
+      group = spec.group;
+      const h = document.createElement('div'); h.className = 'cat'; h.textContent = group; box.appendChild(h);
     }
+    const lab = document.createElement('label'); lab.className = 'cls';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = chosen.includes(id);
+    cb.onchange = () => toggle(id);
+    const hint = document.createElement('small'); hint.textContent = spec.covers;
+    lab.append(cb, spec.label, hint); box.appendChild(lab);
   }
 }
 $('#search').oninput = renderList;

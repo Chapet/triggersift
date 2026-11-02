@@ -1,115 +1,104 @@
-# ASMR trigger taxonomy. `sound` = lowercase noun/verb phrase, used as the SAM Audio text prompt.
-# Draft, to refine on real videos.
-hands:
-  label: Hand sounds
-  subs:
-    rubbing: {label: Hand rubbing, sound: hands rubbing together}
-    fluttering: {label: Finger fluttering / hand movements, sound: fingers fluttering}
-    snapping: {label: Finger snapping, sound: finger snapping}
-    tapping: {label: "Hand tapping (on palms, back of hands)", sound: tapping on hands}
-    lotion_hands: {label: Lotioned hand sounds, sound: wet hands rubbing}
-tapping:
-  label: Tapping
-  subs:
-    nail_tapping: {label: Fingernail tapping, sound: fingernails tapping}
-    finger_tapping: {label: Fingertip tapping, sound: fingertips tapping}
-    wood: {label: Tapping on wood, sound: tapping on wood}
-    glass: {label: Tapping on glass, sound: tapping on glass}
-    plastic: {label: Tapping on plastic, sound: tapping on plastic}
-    metal: {label: Tapping on metal, sound: tapping on metal}
-    leather: {label: Tapping on leather, sound: tapping on leather}
-    cardboard: {label: Tapping on cardboard or books, sound: tapping on cardboard}
-    mic: {label: Tapping on the microphone, sound: tapping on a microphone}
-scratching:
-  label: Scratching
-  subs:
-    fabric: {label: Scratching fabric, sound: scratching fabric}
-    mic_cover: {label: Scratching the mic cover, sound: scratching a microphone cover}
-    hard_surface: {label: Scratching a hard surface, sound: nails scratching a hard surface}
-    beard: {label: Beard scratching, sound: scratching a beard}
-    foam: {label: Scratching foam, sound: scratching foam}
-crinkling:
-  label: Crinkling
-  subs:
-    plastic_bag: {label: Plastic bag, sound: crinkling plastic bag}
-    foil: {label: Aluminium foil, sound: crinkling foil}
-    wrapper: {label: Wrapper / cellophane, sound: crinkling wrapper}
-    paper: {label: Paper crinkling, sound: crumpling paper}
-    page_turning: {label: Page turning, sound: turning pages}
-mouth:
-  label: Mouth sounds
-  subs:
-    wet_mouth: {label: Wet mouth sounds, sound: wet mouth sounds}
-    tongue_click: {label: Tongue clicking, sound: tongue clicking}
-    kissing: {label: Kisses, sound: kissing sounds}
-    lip_smack: {label: Lip smacking, sound: lip smacking}
-    eating: {label: Eating / chewing, sound: chewing food}
-    breathing: {label: "Breathing / blowing on the mic (intentional)", sound: breathing into a microphone}
-    mouthing: {label: "Mouthing / silent whispering (lips and tongue, no voice)", sound: lips and tongue moving}
-voice:
-  label: Voice
-  subs:
-    whisper: {label: Whispering, sound: whispering}
-    unintelligible: {label: Inaudible whispering, sound: unintelligible whispering}
-    soft_spoken: {label: Soft speaking, sound: woman speaking softly}
-    humming: {label: Humming, sound: humming}
-    talking: {label: "Normal talking (intro, sponsor, chat)", sound: man speaking}
+# ASMR sound classes (v2, 2026-11-02): classified by the sound you hear, not by the object being touched.
+# v1 had ~75 object-level labels (tapping on wood / glass / leather…) with 0–5 examples each: too fine to label or
+# learn, and likes/dislikes follow the sound anyway. v1 is kept in ../taxonomy.v1-objects.yaml; `migrate.py` maps
+# old labels to these classes.
+#
+# Each class is its own category (id without a dot). `group` only orders/heads them in the UI.
+# `sound` = SAM Audio / PE-A-Frame text prompt. `covers` = what goes in it, shown to help labeling.
+
+# ---- Short hits
+tapping_sharp:
+  group: Short hits
+  label: Sharp tapping
+  sound: sharp tapping on a hard surface
+  covers: "fingernails, glass, metal, hard plastic, wood: crisp, bright, ringing"
+tapping_soft:
+  group: Short hits
+  label: Soft tapping
+  sound: soft muffled tapping
+  covers: "fingertips, hands, leather, cardboard, books, fabric: low, dull, muffled (étouffé)"
+clicks:
+  group: Short hits
+  label: Crisp clicks
+  sound: small mechanical clicks
+  covers: "keyboard, buttons, controller, mouse, pen, nail clicking, lids, clippers, finger snaps"
+crunch:
+  group: Short hits
+  label: Crunching
+  sound: crunching and crumbling
+  covers: "kinetic sand, soap cutting, crispy food, ice, scissors, hair cutting"
+
+# ---- Friction
+rubbing:
+  group: Friction
+  label: Rubbing & scratching
+  sound: rubbing and scratching
+  covers: "hands rubbing, fabric, beard, nails scratching a surface, foam, writing"
 brushing:
+  group: Friction
   label: Brushing
-  subs:
-    mic_brushing: {label: Brushing the microphone, sound: brushing a microphone}
-    lens_brushing: {label: Brushing the lens, sound: soft brush strokes}
-    hair: {label: Hair brushing, sound: brushing hair}
+  sound: soft brush strokes
+  covers: "hair brushing, lens brushing, makeup brushes, finger fluttering, swishes"
+crinkling:
+  group: Friction
+  label: Crinkling
+  sound: crinkling plastic and paper
+  covers: "plastic bags, foil, wrappers, cellophane, paper, page turning"
+mic_contact:
+  group: Friction
+  label: Mic contact
+  sound: rubbing on a microphone
+  covers: "anything touching the mic itself: fluffy cover, mic brushing, mic rubbing, foam squeezing, mic tapping"
+
+# ---- Wet
+mouth:
+  group: Wet
+  label: Mouth sounds
+  sound: wet mouth sounds
+  covers: "wet mouth, tongue clicks, kisses, lip smacks, mouthing, chewing / eating"
 liquid:
-  label: Liquids & textures
-  subs:
-    water: {label: Water pouring / splashing, sound: water pouring}
-    sloshing: {label: Sloshing (liquid in a jar or bottle), sound: liquid sloshing in a jar}
-    slime: {label: Slime / squishing, sound: squishing slime}
-    lotion: {label: Lotion / gel, sound: squishing lotion}
-    bubbles: {label: Bubbles / fizzing, sound: fizzing bubbles}
-mic_texture:
-  label: Mic textures
-  subs:
-    fluffy: {label: Fluffy mic cover rubbing, sound: rubbing a fluffy microphone cover}
-    foam_squeeze: {label: Foam squeezing, sound: squeezing foam}
-    mic_rubbing: {label: Rubbing the microphone, sound: rubbing a microphone}
-clicking:
-  label: Clicking & typing
-  subs:
-    keyboard: {label: Keyboard typing / key pressing, sound: keyboard typing}
-    buttons: {label: "Pressing buttons (remote, calculator, toy)", sound: pressing plastic buttons}
-    controller: {label: Game controller / joystick, sound: game controller buttons and joystick clicking}
-    mouse: {label: Mouse clicks, sound: mouse clicking}
-    pen: {label: Pen clicking / writing, sound: pen clicking}
-    nails_clicking: {label: Nail clicking, sound: fingernails clicking}
-    lid: {label: "Lids (opening, screwing, snapping)", sound: screwing a lid}
-    clippers: {label: Nail clippers, sound: nail clippers clicking}
-cutting:
-  label: Cutting & crunching
-  subs:
-    scissors: {label: Scissors / hair cutting, sound: scissors cutting}
-    kinetic_sand: {label: Kinetic sand, sound: cutting kinetic sand}
-    soap: {label: Soap cutting, sound: cutting soap}
-    crunching: {label: "Crunching (ice, crispy food)", sound: crunching}
-ambient:
-  label: Ambient & background
-  subs:
-    rain: {label: Rain, sound: rain}
-    thunder: {label: Thunder, sound: thunder}
-    fire: {label: Fire crackling, sound: fire crackling}
-    music: {label: Background music, sound: background music}
-    fan: {label: Fan / AC / air purifier, sound: electric fan noise}
-    hum: {label: Electrical hum / buzz, sound: electrical hum}
-    hiss: {label: Hiss / white noise (mic noise), sound: static hiss}
-    outside: {label: "Outside noise (traffic, birds, people)", sound: traffic noise}
-    room: {label: "Room noise (footsteps, doors, pets)", sound: footsteps in a room}
-noise:
-  label: Recording noise & bumps
-  subs:
-    breathing: {label: "Audible breathing (unintentional: nose, sniffs, sighs)", sound: person breathing}
-    thud: {label: "Muffled thud / bump (chair, desk, body)", sound: muffled thud}
-    mic_bump: {label: Mic bump / handling noise, sound: microphone handling noise}
-    spike: {label: Sudden loud spike / clipping, sound: loud distorted burst}
-    crackle: {label: Pops / crackle / glitch (old or bad recording), sound: audio crackle and pops}
-    chair_creak: {label: Chair or furniture creak, sound: chair creaking}
+  group: Wet
+  label: Liquid & sticky
+  sound: water and liquid sounds
+  covers: "water, sloshing, slime, lotion / gel, bubbles, lotioned hands"
+
+# ---- Voice & breath
+whisper:
+  group: Voice & breath
+  label: Whispering
+  sound: whispering
+  covers: "whispering, intelligible or not"
+spoken:
+  group: Voice & breath
+  label: Spoken voice
+  sound: person speaking
+  covers: "soft speaking, normal talking (intro, sponsor), humming"
+breathing:
+  group: Voice & breath
+  label: Breathing
+  sound: person breathing
+  covers: "breathing, blowing on the mic, sniffs, sighs (intended or not)"
+
+# ---- Background
+steady_noise:
+  group: Background
+  label: Steady noise
+  sound: steady fan noise and electrical hum
+  covers: "fan, AC, air purifier, electrical hum / buzz, hiss, white noise"
+nature:
+  group: Background
+  label: Nature & outside
+  sound: rain and nature sounds
+  covers: "rain, thunder, fire crackling, birds, traffic, outside"
+music:
+  group: Background
+  label: Music
+  sound: background music
+  covers: "background music"
+
+# ---- Accidents
+handling:
+  group: Accidents
+  label: Unwanted noises
+  sound: muffled thud and bump
+  covers: "thuds, desk / mic bumps, chair creaks, room noise (footsteps, doors, pets), loud spikes, crackle"

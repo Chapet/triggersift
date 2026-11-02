@@ -535,9 +535,14 @@ function renderProfile() {
     const div = document.createElement('div');
     div.className = `cat${openCats.has(c) ? ' open' : ''}${secs[c] ? '' : ' absent'}`;
     div.appendChild(row(c, taxonomy[c].label, secs[c], catColor(c), true));
-    const subs = document.createElement('div'); subs.className = 'subs';
-    for (const [id, label] of Object.entries(taxonomy[c].subs)) subs.appendChild(row(id, label, secs[id]));
-    div.appendChild(subs);
+    // v2 sound classes have no subcategories (their only "sub" is themselves): nothing to unfold
+    const own = Object.entries(taxonomy[c].subs).filter(([id]) => id !== c);
+    if (own.length) {
+      const subs = document.createElement('div'); subs.className = 'subs';
+      for (const [id, label] of own) subs.appendChild(row(id, label, secs[id]));
+      div.appendChild(subs);
+    } else div.querySelector('.more').style.visibility = 'hidden';
+    if (taxonomy[c].covers) div.title = taxonomy[c].covers;
     box.appendChild(div);
   }
 }

@@ -19,30 +19,32 @@ class Pref(StrEnum):
 
 @dataclass(frozen=True)
 class Trigger:
-    id: str  # "category.sub"
+    id: str  # the sound class ("tapping_sharp"); it is its own category
     category: str
-    sub: str
+    sub: str  # "" (v1 had "category.sub" ids; the code still accepts them via id.split(".")[0])
     label: str
-    sound: str  # SAM Audio text prompt
+    sound: str  # SAM Audio / PE-A-Frame text prompt
+    group: str = ""  # UI heading only
+    covers: str = ""  # what belongs in the class, shown while labeling
+
+
+KEYS = {"group", "label", "sound", "covers"}
 
 
 @cache
 def taxonomy() -> dict[str, Trigger]:
-    data = yaml.safe_load(TAXONOMY_FILE.read_text())
     out = {}
-    for cat, spec in data.items():
-        for sub, s in spec["subs"].items():
-            tid = f"{cat}.{sub}"
-            # an unquoted comma inside {label: ...} silently splits the label into extra keys
-            if set(s) != {"label", "sound"}:
-                raise ValueError(f"taxonomy.yaml: {tid} has keys {sorted(s)}; quote labels that contain commas")
-            out[tid] = Trigger(tid, cat, sub, s["label"], s["sound"])
+    for cid, s in yaml.safe_load(TAXONOMY_FILE.read_text()).items():
+        # an unquoted comma inside a flow mapping silently splits a value into extra keys
+        if set(s) != KEYS:
+            raise ValueError(f"taxonomy.yaml: {cid} has keys {sorted(s)}, expected {sorted(KEYS)}; quote values with commas")
+        out[cid] = Trigger(cid, cid, "", s["label"], s["sound"], s["group"], s["covers"])
     return out
 
 
 @cache
 def category_labels() -> dict[str, str]:
-    return {cat: spec["label"] for cat, spec in yaml.safe_load(TAXONOMY_FILE.read_text()).items()}
+    return {t.id: t.label for t in taxonomy().values()}
 
 
 @dataclass

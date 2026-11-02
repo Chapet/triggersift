@@ -251,11 +251,9 @@ def state(vid: str, model: str = DEFAULT_MODEL, remover: str = "mute"):
 
 @app.get("/api/taxonomy")
 def get_taxonomy():
-    cats = category_labels()
-    out = {c: {"label": label, "subs": {}} for c, label in cats.items()}
-    for t in taxonomy().values():
-        out[t.category]["subs"][t.id] = t.label
-    return out
+    # same shape as v1 (category → subs) so the pages keep working; each class is its own only "sub"
+    return {t.id: {"label": t.label, "group": t.group, "covers": t.covers, "subs": {t.id: t.label}}
+            for t in taxonomy().values()}
 
 
 @app.get("/api/profile")

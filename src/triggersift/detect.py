@@ -73,7 +73,7 @@ def _schema() -> dict:
 
 
 def _prompt(length: float, frame_times: list[float]) -> str:
-    lines = "\n".join(f"- {t.id}: {t.label}" for t in taxonomy().values())
+    lines = "\n".join(f"- {t.id}: {t.label} ({t.covers})" for t in taxonomy().values())
     times = ", ".join(f"{t:.0f}s" for t in frame_times)
     return f"""You are labelling ASMR trigger sounds in a {length:.0f} second audio clip.
 Video frames from the same clip are attached, in order, taken at {times}.

@@ -159,7 +159,7 @@ def category_events(probs: np.ndarray, hop: float, ids: list[str], offset: float
             means = probs[s:e, ks].mean(axis=0)
             best = ks[int(means.argmax())]
             runner = sorted(((float(m), ids[k]) for m, k in zip(means, ks)), reverse=True)[1:3]
-            note = "also: " + ", ".join(f"{t.split('.')[1]} {m:.2f}" for m, t in runner) if runner else ""
+            note = "also: " + ", ".join(f"{t.split('.')[-1]} {m:.2f}" for m, t in runner) if runner else ""
             events.append(Event(round(offset + s * hop, 2), round(offset + e * hop, 2), ids[best],
                                 round(float(means.max()), 3), note))
     return sorted(events, key=lambda e: e.start)

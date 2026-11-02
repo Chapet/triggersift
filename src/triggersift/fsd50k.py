@@ -19,20 +19,20 @@ EMB = Path("runs/bank/fsd")
 PER_CLASS = 120
 MAX_S = 10.0  # only the first seconds of long clips
 
-# FSD50K class → our category. Left out: "Scratching_(performance_technique)" (DJ scratching), parents like "Hands".
+# FSD50K class → our sound class. Left out: "Scratching_(performance_technique)" (DJ scratching), parents like "Hands".
 MAP = {
-    "Tap": "tapping", "Knock": "tapping",
+    "Tap": "tapping_sharp", "Knock": "tapping_soft",
     "Crumpling_and_crinkling": "crinkling",
-    "Typing": "clicking", "Computer_keyboard": "clicking", "Writing": "clicking",
+    "Typing": "clicks", "Computer_keyboard": "clicks", "Finger_snapping": "clicks",
+    "Writing": "rubbing",
     "Chewing_and_mastication": "mouth",
-    "Whispering": "voice", "Male_speech_and_man_speaking": "voice", "Female_speech_and_woman_speaking": "voice",
-    "Breathing": "noise", "Sigh": "noise", "Thump_and_thud": "noise",
-    "Rain": "ambient", "Thunder": "ambient", "Mechanical_fan": "ambient", "Hiss": "ambient", "Buzz": "ambient",
-    "Fire": "ambient",
+    "Whispering": "whisper", "Male_speech_and_man_speaking": "spoken", "Female_speech_and_woman_speaking": "spoken",
+    "Breathing": "breathing", "Sigh": "breathing", "Thump_and_thud": "handling",
+    "Rain": "nature", "Thunder": "nature", "Fire": "nature",
+    "Mechanical_fan": "steady_noise", "Hiss": "steady_noise", "Buzz": "steady_noise",
     "Pour": "liquid", "Drip": "liquid", "Splash_and_splatter": "liquid", "Trickle_and_dribble": "liquid",
     "Gurgling": "liquid",
-    "Finger_snapping": "hands",
-    "Scissors": "cutting",
+    "Scissors": "crunch",
 }
 
 

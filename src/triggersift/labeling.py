@@ -52,8 +52,8 @@ def _cut(src: Path, clip: dict) -> None:
 
 
 def _clean(body: dict, video: Path) -> dict:
-    known = set(taxonomy())
-    triggers = [t for t in body.get("triggers", []) if t in known]
+    from .migrate import convert  # a page still open on the v1 list sends "tapping.glass": keep it as its class
+    triggers = list(dict.fromkeys(n for t in body.get("triggers", []) if (n := convert(t)) in taxonomy()))
     start, end = float(body["start"]), float(body["end"])
     if end - start < 0.5 or end - start > 60:
         raise HTTPException(400, "a clip must be 0.5–60 s long")
