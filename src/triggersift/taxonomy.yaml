@@ -48,7 +48,7 @@ mic_contact:
   group: Friction
   label: Mic contact
   sound: rubbing on a microphone
-  covers: "anything touching the mic itself: fluffy cover, mic brushing, mic rubbing, foam squeezing, mic tapping"
+  covers: "really loud, close brushing / scratching / rubbing right on the mic (fluffy cover, foam, mic tapping): on purpose, ongoing"
 
 # ---- Wet
 mouth:
@@ -101,4 +101,4 @@ handling:
   group: Accidents
   label: Unwanted noises
   sound: muffled thud and bump
-  covers: "thuds, desk / mic bumps, chair creaks, room noise (footsteps, doors, pets), loud spikes, crackle"
+  covers: "accidental one-off knocks: thuds, desk / mic bumps, chair creaks, room noise (footsteps, doors, pets), spikes, crackle"
