@@ -1,7 +1,8 @@
 # ASMR sound classes (v2, 2026-11-02): classified by the sound you hear, not by the object being touched.
 # v1 had ~75 object-level labels (tapping on wood / glass / leather…) with 0–5 examples each: too fine to label or
 # learn, and likes/dislikes follow the sound anyway. v1 is kept in ../taxonomy.v1-objects.yaml; `migrate.py` maps
-# old labels to these classes.
+# old labels to these classes. 2026-11-03: mic_contact merged into brushing (user: same sound, only louder;
+# loudness is the effects' job, not a class).
 #
 # Each class is its own category (id without a dot). `group` only orders/heads them in the UI.
 # `sound` = SAM Audio / PE-A-Frame text prompt. `covers` = what goes in it, shown to help labeling.
@@ -38,17 +39,12 @@ brushing:
   group: Friction
   label: Brushing
   sound: soft brush strokes
-  covers: "hair brushing, lens brushing, makeup brushes, finger fluttering, swishes"
+  covers: "hair brushing, lens brushing, makeup brushes, finger fluttering, swishes; also brushing / scratching right on the mic (fluffy cover, foam), even when loud"
 crinkling:
   group: Friction
   label: Crinkling
   sound: crinkling plastic and paper
   covers: "plastic bags, foil, wrappers, cellophane, paper, page turning"
-mic_contact:
-  group: Friction
-  label: Mic contact
-  sound: rubbing on a microphone
-  covers: "really loud, close brushing / scratching / rubbing right on the mic (fluffy cover, foam, mic tapping): on purpose, ongoing"
 
 # ---- Wet
 mouth:

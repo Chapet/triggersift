@@ -23,15 +23,15 @@ OLD = {
               "lotion_hands": "liquid"},
     "tapping": {**{k: "tapping_sharp" for k in SHARP},
                 "finger_tapping": "tapping_soft", "leather": "tapping_soft", "cardboard": "tapping_soft",
-                "mic": "mic_contact"},
+                "mic": "brushing"},
     "scratching": {"fabric": "rubbing", "hard_surface": "rubbing", "beard": "rubbing", "foam": "rubbing",
-                   "mic_cover": "mic_contact"},
+                   "mic_cover": "brushing"},
     "crinkling": "crinkling",
     "mouth": {"breathing": "breathing", "*": "mouth"},
     "voice": {"whisper": "whisper", "unintelligible": "whisper", "*": "spoken"},
-    "brushing": {"mic_brushing": "mic_contact", "*": "brushing"},
+    "brushing": "brushing",
     "liquid": "liquid",
-    "mic_texture": "mic_contact",
+    "mic_texture": "brushing",
     "clicking": "clicks",
     "cutting": "crunch",
     "ambient": {"rain": "nature", "thunder": "nature", "fire": "nature", "outside": "nature", "music": "music",
@@ -42,9 +42,14 @@ OLD = {
 OLD_CATEGORY = {cat: sorted({v for v in (m.values() if isinstance(m, dict) else [m])}) for cat, m in OLD.items()}
 
 
+RENAMED = {"mic_contact": "brushing"}  # v2 classes merged later (2026-11-03)
+
+
 def convert(tid: str) -> str | None:
     if tid in taxonomy() or tid == "other":
         return tid
+    if tid in RENAMED:
+        return RENAMED[tid]
     cat, _, sub = tid.partition(".")
     m = OLD.get(cat)
     if m is None:
