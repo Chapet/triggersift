@@ -156,7 +156,9 @@ def detectors():
 def removers():
     return [{"id": "mute", "label": "Mute (soft fade)", "unavailable": None},
             {"id": "duck", "label": "Duck (−15 dB, sounds more natural)", "unavailable": None},
-            {"id": "sam-audio", "label": "Remove with SAM Audio · Meta, local GPU",
+            {"id": "sam-audio", "label": "Remove with SAM Audio · keeps your original sound",
+             "unavailable": samaudio.available()},
+            {"id": "sam-audio-rebuilt", "label": "Remove with SAM Audio · rebuilt audio (older, stronger)",
              "unavailable": samaudio.available()}]
 
 
@@ -222,7 +224,7 @@ def analyze(vid: str, focus: float = 0.0, model: str = DEFAULT_MODEL):
 
 
 @app.post("/api/videos/{vid}/samaudio")
-def sam_render(vid: str, model: str = DEFAULT_MODEL, fx: str = ""):
+def sam_render(vid: str, model: str = DEFAULT_MODEL, fx: str = "", mode: str = "mask"):
     """Render a soundtrack where your short dislikes ("filter" steps) are removed by SAM Audio; poll until done.
     Uses the plan as it is now: changing your profile or finishing more analysis gives a new render."""
     if reason := samaudio.available():
@@ -231,7 +233,9 @@ def sam_render(vid: str, model: str = DEFAULT_MODEL, fx: str = ""):
     with a.lock:
         events = sorted((e for evs in a.events.values() for e in evs), key=lambda e: e.start)
     steps = plan(events, _profile(), can_filter=True)
-    return samaudio.start(a.path, steps, a.duration, _fx(fx) if fx else None)
+    if mode not in samaudio.MODES:
+        raise HTTPException(400, "unknown mode")
+    return samaudio.start(a.path, steps, a.duration, _fx(fx) if fx else None, mode)
 
 
 @app.get("/api/videos/{vid}/samaudio/{key}/media")
@@ -246,7 +250,7 @@ def sam_media(vid: str, key: str):
 
 @app.get("/api/videos/{vid}/state")
 def state(vid: str, model: str = DEFAULT_MODEL, remover: str = "mute"):
-    return _analysis(vid, model).state(can_filter=remover == "sam-audio")
+    return _analysis(vid, model).state(can_filter=remover.startswith("sam-audio"))
 
 
 @app.get("/api/taxonomy")

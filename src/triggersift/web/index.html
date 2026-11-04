@@ -370,7 +370,7 @@ function fxFailed(token, msg) {
 // Which soundtrack plays: original < effect < SAM Audio render (built on the effect), unless comparing
 function updateSource() {
   if (!vid) return;
-  const useSam = sift && remover === 'sam-audio' && sam.url;
+  const useSam = sift && isSam() && sam.url;
   $('#ab').disabled = !(fxUrl || useSam);
   const url = hearingOriginal ? `/api/videos/${vid}/media`
     : useSam ? sam.url : fxUrl || `/api/videos/${vid}/media`;
@@ -378,19 +378,20 @@ function updateSource() {
 }
 
 // ---------- SAM Audio: remove the short dislikes instead of muting them ----------
+const isSam = () => remover.startsWith('sam-audio');
 async function ensureSam() {
-  if (remover !== 'sam-audio' || !st || !vid) { $('#samstatus').textContent = ''; return; }
+  if (!isSam() || !st || !vid) { $('#samstatus').textContent = ''; return; }
   if (!analysisDone()) { $('#samstatus').textContent = 'SAM Audio starts when the analysis is complete.'; return; }
   const fx = fxChain();
   const filters = st.plan.filter(s => s.action === 'filter');
-  const sig = JSON.stringify([vid, detector, fx, filters.map(s => [s.start, s.end, s.triggers])]);
+  const sig = JSON.stringify([vid, detector, fx, remover, filters.map(s => [s.start, s.end, s.triggers])]);
   if (sig === sam.sig) return;
   sam = {sig, url: null};
   updateSource();
   if (!filters.length) { $('#samstatus').textContent = 'SAM Audio: nothing to remove (no short dislikes found).'; return; }
   for (;;) {
     let job;
-    try { job = await api(`/api/videos/${vid}/samaudio?model=${detector}&fx=${fx}`, {method: 'POST'}); }
+    try { job = await api(`/api/videos/${vid}/samaudio?model=${detector}&fx=${fx}&mode=${remover === 'sam-audio' ? 'mask' : 'rebuilt'}`, {method: 'POST'}); }
     catch (e) { $('#samstatus').textContent = `SAM Audio failed: ${e.message}`; return; }
     if (sam.sig !== sig) return;  // the plan or the video changed meanwhile: a newer request takes over
     if (job.status === 'error') { $('#samstatus').textContent = `SAM Audio failed: ${job.error || ''}`; return; }
@@ -399,7 +400,7 @@ async function ensureSam() {
       '(muted meanwhile)';
     await new Promise(r => setTimeout(r, 2000));
   }
-  const job = await api(`/api/videos/${vid}/samaudio?model=${detector}&fx=${fx}`, {method: 'POST'});
+  const job = await api(`/api/videos/${vid}/samaudio?model=${detector}&fx=${fx}&mode=${remover === 'sam-audio' ? 'mask' : 'rebuilt'}`, {method: 'POST'});
   sam.url = `/api/videos/${vid}/samaudio/${job.key}/media`;
   $('#samstatus').textContent = `SAM Audio removed ${filters.length} sections.`;
   updateSource();

@@ -4,6 +4,10 @@ SAM Audio runs in its own environment (vendor/sam-env) as a worker process (tool
 loading the 3B model naively once peaked at ~24 GB and got the whole session OOM-killed. It needs ~13 GB of GPU,
 so PE-A-Frame's model is unloaded first. Tested 2026-11-01: the clipped mouth pop at 0:04 of 0CwxN5mx7l4 went from
 0 dB to −23 dB peak with "mouth click", the rest of the audio within 0.5 dB; ~1.2 s per 10 s per ear.
+
+SAM Audio regenerates what it returns, so playing its output changes everything in the section (user: "the entire
+track feels altered"). Two modes: "mask" keeps the original recording and only uses SAM's two outputs to decide how
+far to lower each time-frequency slice; "rebuilt" plays SAM's output as is (the first version, kept as a fallback).
 """
 
 import hashlib
@@ -16,6 +20,7 @@ import wave
 from pathlib import Path
 
 import numpy as np
+from scipy.signal import istft, stft
 
 from .detect import _file_id
 from .effects import OUT, _audio_codec, output as effect_output
@@ -30,6 +35,9 @@ SR = 48_000
 PAD_S = 0.3  # context around each section, blended back with a crossfade
 FADE_S = 0.02
 RAM_CAP = "14G"
+MODES = ("mask", "rebuilt")
+MASK_NPERSEG = 1024  # ~21 ms × 47 Hz slices, moving 5 ms at a time
+MASK_FLOOR_DB = -40.0  # a slice that is all disliked sound goes down this far
 
 _jobs: dict[str, dict] = {}
 _lock = threading.Lock()
@@ -53,9 +61,22 @@ def _segments(steps: list[Step], total: float) -> list[dict]:
     return segs
 
 
-def key(src: Path, steps: list[Step], fx: str | None) -> str:
+def key(src: Path, steps: list[Step], fx: str | None, mode: str = "mask") -> str:
     segs = [(round(s.start, 2), round(s.end, 2), sorted(s.triggers)) for s in steps if s.action == Action.FILTER]
-    return hashlib.sha1(json.dumps([_file_id(src), segs, fx, MODEL]).encode()).hexdigest()[:12]
+    return hashlib.sha1(json.dumps([_file_id(src), segs, fx, MODEL, mode]).encode()).hexdigest()[:12]
+
+
+def apply_mask(x: np.ndarray, residual: np.ndarray, target: np.ndarray, nperseg: int = MASK_NPERSEG,
+               floor_db: float = MASK_FLOOR_DB) -> np.ndarray:
+    """The original x [2, samples], each slice lowered by the disliked sound's share of it in SAM's two outputs.
+    Slices where SAM found nothing keep the original untouched."""
+    if x.shape[1] < nperseg:
+        return residual
+    kw = {"fs": SR, "nperseg": nperseg, "noverlap": nperseg * 3 // 4}
+    Z, R, T = (stft(a, **kw)[2] for a in (x, residual, target))
+    r, t = np.abs(R) ** 2, np.abs(T) ** 2
+    gain = np.maximum(r / (r + t + 1e-14), 10 ** (floor_db / 20))
+    return istft(Z * gain, **kw)[1][:, :x.shape[1]].astype(np.float32)
 
 
 def output(src: Path, k: str) -> Path:
@@ -82,7 +103,7 @@ def _run_worker(jobfile: Path, job: dict) -> tuple[int, str]:
     return p.wait(), err
 
 
-def _render(src: Path, audio_src: Path, steps: list[Step], total: float, k: str, job: dict) -> None:
+def _render(src: Path, audio_src: Path, steps: list[Step], total: float, k: str, job: dict, mode: str) -> None:
     work = OUT / f"sam-{k}"
     work.mkdir(parents=True, exist_ok=True)
     out = output(src, k)
@@ -111,6 +132,8 @@ def _render(src: Path, audio_src: Path, steps: list[Step], total: float, k: str,
             y = np.load(work / f"seg_{i}.npy")
             b = min(audio.shape[1], a + y.shape[1])
             y = y[:, :b - a]
+            if mode == "mask":
+                y = apply_mask(audio[:, a:b], y, np.load(work / f"seg_{i}_target.npy")[:, :b - a])
             w_ = np.ones(b - a, np.float32)  # crossfade in/out against the original
             r = min(fade, (b - a) // 2)
             if r:
@@ -133,8 +156,8 @@ def _render(src: Path, audio_src: Path, steps: list[Step], total: float, k: str,
         shutil.rmtree(work, ignore_errors=True)
 
 
-def start(src: Path, steps: list[Step], total: float, fx: str | None) -> dict:
-    k = key(src, steps, fx)
+def start(src: Path, steps: list[Step], total: float, fx: str | None, mode: str = "mask") -> dict:
+    k = key(src, steps, fx, mode)
     audio_src = effect_output(src, fx) if fx else src  # chain after an effect if one is selected
     if fx and not audio_src.exists():
         return {"status": "error", "error": "render the effect first", "key": k}
@@ -146,5 +169,5 @@ def start(src: Path, steps: list[Step], total: float, fx: str | None) -> dict:
             job = {"status": "done", "progress": 1.0, "nothing": True}
         elif job is None or job["status"] == "error":
             job = _jobs[k] = {"status": "rendering", "progress": 0.0}
-            threading.Thread(target=_render, args=(src, audio_src, steps, total, k, job), daemon=True).start()
+            threading.Thread(target=_render, args=(src, audio_src, steps, total, k, job, mode), daemon=True).start()
         return {**job, "key": k}
