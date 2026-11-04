@@ -25,6 +25,8 @@ class Step:
 MERGE_GAP_S = 2.0
 SKIP_MIN_S = 15.0
 SKIP_MIN_COVERAGE = 0.5
+SKIP_MIN_CONFIDENCE = 0.7  # a wrong skip loses a chunk of the video; a wrong removal only changes the sound a little
+NEVER_SKIP = {"steady_noise", "music"}  # they run through whole videos: process them, don't jump over them
 
 
 def _runs(events: list[Event]) -> list[tuple[float, float, list[Event]]]:
@@ -52,6 +54,12 @@ def _covered(events: list[Event]) -> float:
     return total + ((cur_t - cur_s) if cur_t is not None else 0.0)
 
 
+def _confidence(events: list[Event]) -> float:
+    """Average confidence, weighted by how long each event lasts."""
+    total = sum(e.end - e.start for e in events)
+    return sum(e.confidence * (e.end - e.start) for e in events) / total if total else 0.0
+
+
 def plan(events: list[Event], profile: Profile, can_filter: bool = True,
          min_confidence: float = 0.4) -> list[Step]:
     events = [e for e in events if e.confidence >= min_confidence]
@@ -62,13 +70,16 @@ def plan(events: list[Event], profile: Profile, can_filter: bool = True,
     for start, end, evs in _runs(disliked):
         triggers = sorted({e.trigger for e in evs})
         length = end - start
-        coverage = _covered(evs) / length if length else 0.0
+        skippable = [e for e in evs if e.trigger.split(".")[0] not in NEVER_SKIP]
+        coverage = _covered(skippable) / length if length else 0.0
+        sure = _confidence(skippable) >= SKIP_MIN_CONFIDENCE
         overlaps_liked = any(l.start < end and l.end > start for l in liked)
-        if length >= SKIP_MIN_S and coverage >= SKIP_MIN_COVERAGE and not overlaps_liked:
+        if length >= SKIP_MIN_S and coverage >= SKIP_MIN_COVERAGE and sure and not overlaps_liked:
             steps.append(Step(start, end, Action.SKIP, triggers,
                               f"{length:.0f}s of disliked sound ({coverage:.0%} covered)"))
         else:
             why = ("liked trigger plays at the same time" if overlaps_liked
-                   else f"short or sparse ({length:.0f}s, {coverage:.0%} covered)")
+                   else "not sure enough to skip" if length >= SKIP_MIN_S and coverage >= SKIP_MIN_COVERAGE
+                   else f"short, sparse or background ({length:.0f}s, {coverage:.0%} covered)")
             steps.append(Step(start, end, soft, triggers, why))
     return steps
