@@ -1,12 +1,42 @@
 # TriggerSift
 
-ASMR works by personal triggers: the tapping one person loves, another can't stand. One disliked sound can ruin a
-video that is otherwise perfect, and the only option today is to skip around by hand or give up on the video.
+**Keep the sounds you came for.**
 
-TriggerSift listens to a video, finds the triggers in it, and plays *your* cut: long stretches you dislike are skipped,
-short ones are removed or muted, and the whole soundtrack can be cleaned up with effects (fan noise, desk thuds, pops).
+You've found the perfect ASMR video. Slow tapping, you're almost asleep, and then someone bumps the mic. Or twenty
+minutes in, the crinkling starts, and you can't stand crinkling. Everyone has sounds they love and sounds they don't,
+and until now your only options were to skip around by hand or give up on the video.
 
-Built for the Meta Global AI Developer Hackathon (Indie track, "Build for Your World").
+TriggerSift listens to the video first. You tell it what you love and what you'd rather avoid, and it plays your own
+version.
+
+![TriggerSift playing a video: the video on the left, sounds to love or avoid on the right, and a graph along the bottom showing what was heard and what gets skipped or removed](docs/screenshot.png)
+
+## What it does
+
+1. **Pick a video** from your library.
+2. **Choose your sounds.** Love it or avoid it, across 15 kinds of sound: sharp tapping, whispering, crinkling, mouth
+   sounds, mic bumps and more.
+3. **Press play.** The graph shows everything TriggerSift heard and what it will do about it:
+   - A long stretch you dislike is **skipped**.
+   - A short sound you dislike is **taken out or turned down**, and the video keeps playing.
+   - Flip between **Your cut** and **Original** at any moment to hear the difference.
+
+You can also clean up the whole soundtrack, for example to reduce a fan or soften desk thuds.
+
+**A fair warning:** this is an early project. It misses some sounds and mistakes others, and taking a sound out works
+best on a clear bump with nothing on top of it. See [Known limits](#known-limits).
+
+## Try it
+
+It runs on your own computer, on videos you already have, and needs an NVIDIA GPU with 16 GB of memory for the local
+models. Follow [Run it](#run-it), then open <http://localhost:8000/demo>.
+
+Built for the Meta Global AI Developer Hackathon (Indie track, "Build for Your World"), on Meta's PE-A-Frame,
+SAM Audio and Muse Wonder.
+
+---
+
+# The details
 
 ## How it works
 
@@ -91,7 +121,7 @@ git clone https://github.com/Chapet/triggersift app
 git clone https://github.com/facebookresearch/perception_models vendor/perception_models
 echo 'MODEL_API_KEY=...' > .env        # only for Muse Wonder
 cd app && uv sync --extra local
-TRIGGERSIFT_LIBRARY=/path/to/videos uv run sift-server   # http://localhost:8000, labeler at /label
+TRIGGERSIFT_LIBRARY=/path/to/videos uv run sift-server   # http://localhost:8000/demo
 ```
 
 SAM Audio is optional and gated on Hugging Face. It runs in its own environment:
@@ -101,6 +131,10 @@ git clone https://github.com/facebookresearch/sam-audio vendor/sam-audio
 git -C vendor/sam-audio apply ../../app/patches/sam-audio-triggersift.patch
 uv venv vendor/sam-env && uv pip install --python vendor/sam-env/bin/python -e vendor/sam-audio
 ```
+
+Three screens: `/demo` is the simple one, `/` is the full player with every detector, removal option and effect, and
+`/label` is the labeling tool. `/demo` uses PE-A-Frame zero-shot and SAM Audio by default, and falls back to ducking if
+SAM Audio isn't installed; change them with `?detector=` and `?remover=`.
 
 We tested at `perception_models` 3e352cc and `sam-audio` bb4c699. The SAM worker uses `systemd-run` for a RAM cap when available.
 
