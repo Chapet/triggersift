@@ -1,6 +1,6 @@
 # ASMR sound classes (v2, 2026-11-02): classified by the sound you hear, not by the object being touched.
 # v1 had ~75 object-level labels (tapping on wood / glass / leather…) with 0–5 examples each: too fine to label or
-# learn, and likes/dislikes follow the sound anyway. v1 is kept in ../taxonomy.v1-objects.yaml; `migrate.py` maps
+# learn, and likes/dislikes follow the sound anyway. v1 is kept in docs/taxonomy.v1-objects.yaml; `migrate.py` maps
 # old labels to these classes. 2026-11-03: mic_contact merged into brushing (user: same sound, only louder;
 # loudness is the effects' job, not a class);
 # nature split: rain / fire / thunder → steady_noise, outside (sirens, traffic) → handling.

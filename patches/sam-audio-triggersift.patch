@@ -1,0 +1,53 @@
+diff --git i/sam_audio/model/base.py w/sam_audio/model/base.py
+index 3aa3a57..1de645d 100644
+--- i/sam_audio/model/base.py
++++ w/sam_audio/model/base.py
+@@ -21,8 +21,8 @@ class BaseModel(torch.nn.Module, ModelHubMixin):
+         model_id: str,
+         cache_dir: str,
+         force_download: bool,
+-        proxies: Optional[Dict],
+-        resume_download: bool,
++        proxies: Optional[Dict] = None,  # gone from huggingface_hub >= 1.0
++        resume_download: bool = False,
+         local_files_only: bool,
+         token: Union[str, bool, None],
+         map_location: str = "cpu",
+@@ -38,8 +38,6 @@ class BaseModel(torch.nn.Module, ModelHubMixin):
+                 revision=cls.revision,
+                 cache_dir=cache_dir,
+                 force_download=force_download,
+-                proxies=proxies,
+-                resume_download=resume_download,
+                 token=token,
+                 local_files_only=local_files_only,
+             )
+@@ -47,16 +45,27 @@ class BaseModel(torch.nn.Module, ModelHubMixin):
+         with open(os.path.join(cached_model_dir, "config.json")) as fin:
+             config = json.load(fin)
+ 
++        # TriggerSift: build in a smaller dtype and memory-map the checkpoint, so the 3B model never holds two
++        # fp32 copies in RAM (~24 GB peak, which got the session OOM-killed on a 32 GB machine).
++        dtype = model_kwargs.pop("dtype", None)
+         for key, value in model_kwargs.items():
+             if key in config:
+                 config[key] = value
+ 
+         config = cls.config_cls(**config)
+-        model = cls(config)
++        previous = torch.get_default_dtype()
++        if dtype is not None:
++            torch.set_default_dtype(dtype)
++        try:
++            model = cls(config)
++        finally:
++            torch.set_default_dtype(previous)
+         state_dict = torch.load(
+             os.path.join(cached_model_dir, "checkpoint.pt"),
+             weights_only=True,
+             map_location=map_location,
++            mmap=True,
+         )
+         model.load_state_dict(state_dict, strict=strict)
++        del state_dict
+         return model

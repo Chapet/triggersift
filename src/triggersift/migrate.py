@@ -4,7 +4,7 @@
     uv run python -m triggersift.migrate --write  # rewrites labels.jsonl, the profile and footage/labels.yaml
 
 Idempotent: v2 ids pass through unchanged. Backups were made by hand before the first run (2026-11-02):
-labels.before-sound-classes.jsonl, data/profile.v1.json, ../taxonomy.v1-objects.yaml.
+labels.before-sound-classes.jsonl, data/profile.v1.json, docs/taxonomy.v1-objects.yaml.
 """
 
 import argparse
