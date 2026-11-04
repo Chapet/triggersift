@@ -1,0 +1,736 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TriggerSift</title>
+<link rel="icon" href="data:,">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;1,9..144,400&family=Instrument+Sans:wght@400;500;600&display=swap">
+<style>
+  /* The room at night: warm dark, one lamp. Teal / amber / coral are only ever love / removed / skipped-or-avoid. */
+  :root {
+    --bg: #15120f; --surface: #1e1a16; --raised: #28231d; --line: #352e26;
+    --ink: #f3ebdf; --ink2: #bcb1a2; --ink3: #8f8578;
+    --love: #35b3b0; --removed: #dba32c; --avoid: #e8604c; --other: #6e665b;
+    --gutter: 158px;
+    --serif: Fraunces, Georgia, serif; --sans: "Instrument Sans", system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; color: var(--ink); font: 14px/1.4 var(--sans); background: var(--bg);
+    background-image: radial-gradient(900px 620px at 24% -8%, #3a2c1a66, transparent 70%);
+    display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100dvh; overflow: hidden; }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+
+  /* top bar */
+  .top { display: flex; align-items: center; gap: 20px; padding: 14px 24px; min-width: 0; }
+  .brand { font: 400 22px/1 var(--serif); letter-spacing: -.01em; }
+  .brand em { color: var(--ink2); }
+  .current { display: flex; align-items: center; gap: 10px; min-width: 0; max-width: 620px; padding: 5px 12px 5px 5px;
+    border: 1px solid var(--line); border-radius: 10px; color: var(--ink2); transition: border-color .15s, color .15s; }
+  .current:hover { border-color: var(--ink3); color: var(--ink); }
+  .current img { width: 40px; height: 24px; object-fit: cover; border-radius: 5px; flex: none; }
+  .current span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .current svg { flex: none; }
+
+  /* video + triggers */
+  .room { display: flex; gap: 22px; padding: 0 24px 14px; min-height: 0; min-width: 0; }
+  .screen { flex: none; display: flex; flex-direction: column; gap: 10px; min-width: 0; max-width: 100%; }
+  .stage { position: relative; flex: 1; min-height: 0; border-radius: 14px; overflow: hidden; background: #0a0807;
+    box-shadow: 0 18px 50px #0007; }
+  video { display: block; width: 100%; height: 100%; object-fit: contain; }
+  .bigplay { position: absolute; inset: 0; margin: auto; width: 76px; height: 76px; border-radius: 50%;
+    display: grid; place-items: center; color: var(--ink); background: #15120fb8; backdrop-filter: blur(8px);
+    transition: opacity .2s, transform .2s; }
+  .bigplay:hover { transform: scale(1.06); }
+  .playing .bigplay { opacity: 0; pointer-events: none; }
+  .badge { position: absolute; left: 50%; bottom: 20px; transform: translate(-50%, 6px); padding: 8px 16px;
+    border-radius: 999px; background: #15120fd9; backdrop-filter: blur(8px); font-weight: 500; white-space: nowrap;
+    display: flex; align-items: center; gap: 8px; opacity: 0; transition: opacity .25s, transform .25s;
+    pointer-events: none; max-width: calc(100% - 32px); overflow: hidden; }
+  .badge.show { opacity: 1; transform: translate(-50%, 0); }
+  .badge i { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--removed); }
+  .badge.skip i { background: var(--avoid); }
+  .transport { display: flex; align-items: center; gap: 14px; flex: none; min-height: 38px; }
+  .play { width: 38px; height: 38px; border-radius: 50%; background: var(--ink); color: var(--bg);
+    display: grid; place-items: center; flex: none; transition: transform .15s; }
+  .play:hover { transform: scale(1.06); }
+  .time { color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .time b { color: var(--ink); font-weight: 500; }
+  .work { color: var(--ink3); margin-left: auto; font-size: 13px; text-align: right; min-width: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ab { display: flex; flex: none; padding: 3px; border-radius: 11px; background: var(--surface); }
+  .ab button { padding: 6px 14px; border-radius: 8px; color: var(--ink3); font-weight: 500; transition: color .15s, background .15s; }
+  .ab button:hover { color: var(--ink); }
+  .ab button[aria-pressed=true] { background: var(--raised); color: var(--ink); }
+
+  .prefs { flex: 1; min-width: 0; display: flex; flex-direction: column; min-height: 0; }
+  .prefs h2 { font: 400 25px/1.15 var(--serif); letter-spacing: -.01em; margin: 2px 0 4px; }
+  .prefs > p { color: var(--ink2); margin: 0 0 10px; }
+  .groups { columns: 250px 3; column-gap: 26px; overflow-y: auto; min-height: 0; flex: 1; padding-right: 4px;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent; }
+  .grp { break-inside: avoid; padding-bottom: 10px; }
+  .grp h3 { margin: 0 0 2px; font-size: 12px; font-weight: 500; color: var(--ink3); }
+  .trig { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 3px 0 10px; border-radius: 9px;
+    transition: background .15s, opacity .3s; }
+  .trig:hover { background: var(--surface); }
+  .trig .nm { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .trig .len { color: var(--ink3); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .trig.absent { opacity: .5; }
+  .trig.like { background: #35b3b022; } .trig.dislike { background: #e8604c26; }
+  .trig .pick { width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; color: var(--ink3);
+    flex: none; transition: color .12s, background .12s, transform .12s; }
+  .trig .pick:hover { color: var(--ink); background: var(--raised); }
+  .trig .pick:active { transform: scale(.88); }
+  .trig .pick.like[aria-pressed=true] { background: var(--love); color: #0c1a1a; }
+  .trig .pick.dislike[aria-pressed=true] { background: var(--avoid); color: #240a06; }
+
+  /* graph */
+  .graph { padding: 12px 24px 12px; background: var(--surface); border-top: 1px solid var(--line); min-width: 0; }
+  .ghead { display: flex; align-items: baseline; gap: 18px; margin-bottom: 8px; flex-wrap: wrap; }
+  .ghead h2 { font: 400 17px/1.2 var(--serif); margin: 0; }
+  .ghead p { margin: 0; color: var(--ink2); flex: 1; min-width: 200px; }
+  .ghead p b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .legend { display: flex; gap: 14px; color: var(--ink2); font-size: 12px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i { width: 14px; height: 8px; border-radius: 2px; }
+  .plot { position: relative; cursor: pointer; user-select: none; touch-action: pan-y; }
+  .plot.reveal .rows { animation: reveal 1s cubic-bezier(.3, .7, .2, 1) both; }
+  @keyframes reveal { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+  .row { display: grid; grid-template-columns: var(--gutter) minmax(0, 1fr); align-items: center; }
+  .row .name { color: var(--ink2); font-size: 12px; padding-right: 12px; display: flex; align-items: center; gap: 6px;
+    overflow: hidden; white-space: nowrap; }
+  .row .name span { overflow: hidden; text-overflow: ellipsis; }
+  .row .name svg { flex: none; }
+  .row.waverow { height: 62px; }
+  .row.waverow .name { color: var(--ink); }
+  .waves { position: relative; height: 100%; }
+  .waves canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #lanes { min-height: 120px; }  /* room for every lane from the start: the video doesn't jump when results arrive */
+  .lane { height: 15px; }
+  .lane .track { position: relative; height: 100%; }
+  .lane .track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--line); opacity: .55; }
+  .blk { position: absolute; top: 3px; bottom: 3px; min-width: 2px; border-radius: 2px; background: var(--other); }
+  .blk.like { background: var(--love); } .blk.dislike { background: var(--avoid); }
+  .over { position: absolute; left: var(--gutter); right: 0; top: 0; bottom: 20px; pointer-events: none; }
+  .band { position: absolute; top: 0; bottom: 0; min-width: 2px; }
+  .band.filter, .band.mute { background: #dba32c17; box-shadow: inset 0 2px var(--removed); }
+  .band.skip { background: #e8604c12; box-shadow: inset 0 2px var(--avoid); }
+  .band.skip::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 62px;
+    background: repeating-linear-gradient(135deg, #e8604c38 0 5px, transparent 5px 10px); }
+  .veil { position: absolute; top: 0; bottom: 0; background: #1e1a16c9; }
+  .veil.busy { animation: breathe 1.6s ease-in-out infinite; }
+  .veil.error { background: repeating-linear-gradient(135deg, #1e1a16e0 0 4px, #1e1a1699 4px 8px); }
+  @keyframes breathe { 50% { opacity: .55; } }
+  .ph { position: absolute; top: -3px; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); border-radius: 1px; }
+  .ph::before { content: ""; position: absolute; top: -3px; left: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); }
+  .cross { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ink3); display: none; }
+  .axis { position: relative; height: 20px; margin-left: var(--gutter); color: var(--ink3); font-size: 11px;
+    font-variant-numeric: tabular-nums; border-top: 1px solid var(--line); }
+  .axis span { position: absolute; top: 4px; transform: translateX(-50%); }
+  .axis span:first-child { transform: none; }
+  .tip { position: fixed; z-index: 20; min-width: 170px; max-width: 280px; padding: 9px 11px; border-radius: 10px;
+    background: #0d0b09; border: 1px solid var(--line); box-shadow: 0 10px 28px #0009; font-size: 12px;
+    pointer-events: none; display: none; }
+  .tip b { display: block; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .tip .act { color: var(--ink); margin-bottom: 4px; }
+  .tip div { display: flex; align-items: center; gap: 7px; color: var(--ink2); margin-top: 2px; }
+  .tip i { width: 12px; height: 2px; border-radius: 1px; flex: none; background: var(--other); }
+  .tip i.like { background: var(--love); } .tip i.dislike { background: var(--avoid); }
+
+  /* video library, over everything but the top bar */
+  .library { position: fixed; inset: 0; z-index: 10; overflow-y: auto; background: var(--bg);
+    background-image: radial-gradient(1100px 620px at 50% -14%, #3a2c1a70, transparent 72%);
+    padding: 22px 24px 48px; animation: rise .3s ease both; }
+  @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  .lib-in { max-width: 1480px; margin: 0 auto; }
+  .lib-top { display: flex; justify-content: space-between; align-items: center; min-height: 32px; }
+  .library h1 { font: 400 clamp(32px, 4.4vw, 56px)/1.05 var(--serif); letter-spacing: -.02em; margin: 6vh 0 8px; }
+  .library .sub { color: var(--ink2); font-size: 17px; margin: 0 0 26px; max-width: 56ch; }
+  .search { display: flex; align-items: center; gap: 10px; width: min(420px, 100%); padding: 10px 14px; margin-bottom: 26px;
+    border-radius: 11px; background: var(--surface); border: 1px solid var(--line); color: var(--ink3); }
+  .search:focus-within { border-color: var(--ink3); }
+  .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: none; color: var(--ink); font: inherit; }
+  .search input::placeholder { color: var(--ink3); }
+  .close { padding: 6px 12px; border-radius: 8px; color: var(--ink2); border: 1px solid var(--line); }
+  .close:hover { color: var(--ink); border-color: var(--ink3); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 24px 18px; }
+  .card { text-align: left; min-width: 0; display: block; align-self: start; }
+  .card .pic { position: relative; display: block; aspect-ratio: 16/9; border-radius: 11px; overflow: hidden;
+    background: linear-gradient(135deg, var(--raised), var(--surface)); }
+  .card img { display: block; width: 100%; height: 100%; object-fit: cover; transition: transform .35s ease, filter .35s; filter: saturate(.86) brightness(.92); }
+  .card:hover img, .card:focus-visible img { transform: scale(1.04); filter: none; }
+  .card .dur { position: absolute; right: 7px; bottom: 7px; padding: 1px 7px; border-radius: 6px; font-size: 12px;
+    background: #15120fcc; font-variant-numeric: tabular-nums; }
+  .card .ttl { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+    margin-top: 8px; color: var(--ink2); transition: color .15s; }
+  .card:hover .ttl { color: var(--ink); }
+  .none { color: var(--ink3); }
+
+  @media (max-width: 900px) {
+    :root { --gutter: 96px; }
+    body { display: block; height: auto; overflow: auto; }
+    .top { padding: 12px 16px; } .current { flex: 1; }
+    .room { display: block; padding: 0 16px 14px; }
+    .screen { width: 100% !important; }
+    .stage { aspect-ratio: 16/9; flex: none; }
+    .prefs { margin-top: 18px; }
+    .groups { overflow: visible; }
+    .work { display: none; } .ab { margin-left: auto; }
+    .graph { padding: 12px 16px; }
+    .library { padding: 16px 16px 40px; }
+    .cards { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 18px 12px; }
+  }
+  @media (max-height: 820px) and (min-width: 901px) {
+    .trig { height: 28px; } .grp { padding-bottom: 6px; }
+    .trig .pick { width: 24px; height: 24px; }
+  }
+  @media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">Trigger<em>Sift</em></div>
+  <button id="current" class="current" hidden title="Choose another video">
+    <img id="curThumb" alt=""><span id="curName"></span>
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5"/></svg>
+  </button>
+</header>
+
+<main class="room" id="room">
+  <section class="screen" id="screen">
+    <div class="stage" id="stage">
+      <video id="v" playsinline preload="metadata"></video>
+      <button class="bigplay" id="bigplay" aria-label="Play">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.6c0-.8.9-1.3 1.6-.8l11 7.4c.6.4.6 1.2 0 1.6l-11 7.4c-.7.5-1.6 0-1.6-.8z"/></svg>
+      </button>
+      <div class="badge" id="badge" role="status"><i></i><span></span></div>
+    </div>
+    <div class="transport">
+      <button class="play" id="play" aria-label="Play"></button>
+      <div class="time"><b id="now">0:00</b> / <span id="total">0:00</span></div>
+      <div class="work" id="work"></div>
+      <div class="ab" role="group" aria-label="What you hear">
+        <button id="abCut" aria-pressed="true">Your cut</button>
+        <button id="abOrig" aria-pressed="false">Original</button>
+      </div>
+    </div>
+  </section>
+  <aside class="prefs">
+    <h2>What do you want to hear?</h2>
+    <p>Love a sound and it stays. Avoid it and TriggerSift takes it out.</p>
+    <div class="groups" id="groups"></div>
+  </aside>
+</main>
+
+<section class="graph" aria-label="What TriggerSift heard in this video">
+  <div class="ghead">
+    <h2>What TriggerSift heard</h2>
+    <p id="summary"></p>
+    <div class="legend">
+      <span><i style="background: repeating-linear-gradient(135deg, var(--avoid) 0 2px, transparent 2px 4px)"></i>Skipped</span>
+      <span><i style="background: var(--removed)"></i><span id="legRemoved">Removed</span></span>
+      <span><i style="background: var(--love)"></i>Love</span>
+      <span><i style="background: var(--avoid)"></i>Avoid</span>
+      <span><i style="background: var(--other)"></i>Other sounds</span>
+    </div>
+  </div>
+  <div class="plot" id="plot">
+    <div class="rows">
+      <div class="row waverow">
+        <div class="name"><span>Soundtrack</span></div>
+        <div class="waves"><canvas id="waveBase"></canvas><canvas id="wavePlayed"></canvas></div>
+      </div>
+      <div id="lanes"></div>
+    </div>
+    <div class="over" id="over"><div id="bands"></div><div id="veils"></div><div class="cross" id="cross"></div><div class="ph" id="ph"></div></div>
+    <div class="axis" id="axis"></div>
+  </div>
+</section>
+
+<section class="library" id="library" aria-label="Choose a video">
+  <div class="lib-in">
+    <div class="lib-top">
+      <div class="brand">Trigger<em>Sift</em></div>
+      <button class="close" id="libClose" hidden>Back to the video</button>
+    </div>
+    <h1>What are you listening to tonight?</h1>
+    <p class="sub">Pick a video. TriggerSift listens to it first, then keeps the sounds you love and takes out the rest.</p>
+    <label class="search">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.6"/><path d="m10.5 10.5 3 3"/></svg>
+      <input id="search" type="search" placeholder="Search your videos" aria-label="Search your videos">
+    </label>
+    <div class="cards" id="cards"></div>
+  </div>
+</section>
+<div class="tip" id="tip"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const v = $('#v');
+const ICON = {
+  like: '<svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 14.2S1.6 10.4 1.6 5.9A3.5 3.5 0 0 1 8 4a3.5 3.5 0 0 1 6.4 1.9c0 4.5-6.4 8.3-6.4 8.3z"/></svg>',
+  dislike: '<svg width="13" height="13" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="m2.5 2.5 9 9m0-9-9 9"/></svg>',
+  play: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.6c0-.8.9-1.3 1.6-.8l11 7.4c.6.4.6 1.2 0 1.6l-11 7.4c-.7.5-1.6 0-1.6-.8z"/></svg>',
+  pause: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect x="6" y="4" width="4.4" height="16" rx="1.4"/><rect x="13.6" y="4" width="4.4" height="16" rx="1.4"/></svg>',
+};
+const MAX_LANES = 7, MIN_CONFIDENCE = 0.4;  // the plan ignores events below 0.4, so the graph does too
+
+// the demo runs on zero-shot PE-A-Frame + SAM Audio (demo/DEMO.md); ?detector= and ?remover= choose others
+const params = new URLSearchParams(location.search);
+const detector = params.get('detector') || 'pe-a-frame-large';
+let remover = params.get('remover') || 'sam-audio';
+
+let taxonomy = {}, profile = {}, videos = [], vid = null, st = null, wave = null;
+let sift = true, poll = null, overrideSkip = null, audio = null;
+let sam = {sig: null, url: null}, samTimer = null;
+
+const fmt = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
+const isSam = () => remover.startsWith('sam-audio');
+const prefOf = id => profile[id] || 'neutral';
+const cleanName = n => n.replace(/\s*\[[\w-]{11}\]$/, '').replace(/\s*⧸⧸\s*|\s*｜\s*/g, ' · ').replace(/⧸/g, '/');
+const original = () => `/api/videos/${vid}/media`;
+
+async function api(path, opts) {
+  const r = await fetch(path, opts);
+  if (!r.ok) throw new Error(`${path}: ${r.status}`);
+  return r.json();
+}
+
+// ---------- A: video library ----------
+async function init() {
+  const removers = await api('/api/removers');
+  if (removers.find(x => x.id === remover)?.unavailable !== null) remover = 'duck';
+  if (!isSam()) $('#legRemoved').textContent = 'Lowered';
+  [taxonomy, profile, videos] = await Promise.all([api('/api/taxonomy'), api('/api/profile'), api('/api/videos')]);
+  videos.sort((a, b) => b.added - a.added);
+  renderPrefs();
+  renderCards();
+  setPlayIcon();
+  fit();
+}
+
+function renderCards() {
+  const q = $('#search').value.trim().toLowerCase();
+  const shown = videos.filter(x => cleanName(x.name).toLowerCase().includes(q));
+  $('#cards').replaceChildren(...shown.map(x => {
+    const b = document.createElement('button');
+    b.className = 'card';
+    const pic = document.createElement('span'); pic.className = 'pic';
+    const img = new Image(); img.loading = 'lazy'; img.alt = ''; img.src = `/api/videos/${x.id}/thumb`;
+    img.onerror = () => img.remove();
+    const dur = document.createElement('span'); dur.className = 'dur'; dur.textContent = fmt(x.duration);
+    pic.append(img, dur);
+    const t = document.createElement('span'); t.className = 'ttl'; t.textContent = cleanName(x.name);
+    b.append(pic, t);
+    b.onclick = () => choose(x.id);
+    return b;
+  }));
+  if (!shown.length) {
+    const p = document.createElement('p'); p.className = 'none'; p.textContent = 'No video with that name.';
+    $('#cards').append(p);
+  }
+}
+$('#search').oninput = renderCards;
+
+function showLibrary(show) {
+  $('#library').hidden = !show;
+  $('#libClose').hidden = !vid;
+  if (show) { v.pause(); $('#search').focus(); }
+}
+$('#current').onclick = () => showLibrary(true);
+$('#libClose').onclick = () => showLibrary(false);
+
+async function choose(id) {
+  showLibrary(false);
+  if (id === vid) return;
+  const x = videos.find(y => y.id === id);
+  vid = id; st = null; wave = null; overrideSkip = null; sam = {sig: null, url: null};
+  $('#current').hidden = false;
+  $('#curName').textContent = cleanName(x.name);
+  $('#curThumb').src = `/api/videos/${id}/thumb`;
+  v.poster = `/api/videos/${id}/thumb`;
+  v.src = original();
+  $('#total').textContent = fmt(x.duration);
+  setAb(true);
+  clearPlot();
+  api(`/api/videos/${id}/wave`).then(w => { if (id === vid) { wave = w; drawWave(); } }).catch(() => {});
+  await kick(0);
+  $('#plot').classList.remove('reveal');
+  await refresh();
+  void $('#plot').offsetWidth;
+  $('#plot').classList.add('reveal');
+  clearInterval(poll);
+  poll = setInterval(refresh, 2000);
+}
+
+async function kick(focus) {
+  if (!vid) return;
+  try { await api(`/api/videos/${vid}/analyze?focus=${focus}&model=${detector}`, {method: 'POST'}); }
+  catch { $('#summary').textContent = 'Could not start listening to this video.'; }
+}
+
+const analysisDone = () => st && st.chunks.every(c => c.status === 'done' || c.status === 'error');
+
+async function refresh() {
+  if (!vid) return;
+  const id = vid;
+  let next;
+  try { next = await api(`/api/videos/${id}/state?model=${detector}&remover=${remover}`); }
+  catch { return; }  // e.g. the server is restarting: the next poll picks it up
+  if (id !== vid) return;
+  st = next;
+  renderPlot(); renderPrefs(); renderSummary();
+  if (analysisDone()) clearInterval(poll);
+  else if (!st.chunks.some(c => c.status === 'busy')) kick(v.currentTime);
+  // wait until the clicking stops: every different plan is a separate SAM Audio render
+  clearTimeout(samTimer);
+  samTimer = setTimeout(ensureSam, 1500);
+}
+
+// ---------- playback ----------
+function ensureAudio() {
+  if (audio) { audio.ctx.resume(); return; }
+  const ctx = new AudioContext(), gain = ctx.createGain();
+  ctx.createMediaElementSource(v).connect(gain).connect(ctx.destination);
+  audio = {ctx, gain};
+}
+
+function toggle() {
+  if (!vid) return;
+  v.paused ? v.play() : v.pause();
+}
+function setPlayIcon() {
+  $('#play').innerHTML = v.paused ? ICON.play : ICON.pause;
+  $('#play').setAttribute('aria-label', v.paused ? 'Play' : 'Pause');
+  $('#stage').classList.toggle('playing', !v.paused);
+}
+$('#play').onclick = $('#bigplay').onclick = toggle;
+v.onclick = toggle;
+v.addEventListener('play', () => { ensureAudio(); kick(v.currentTime); setPlayIcon(); });
+v.addEventListener('pause', setPlayIcon);
+v.addEventListener('seeked', () => kick(v.currentTime));
+addEventListener('keydown', e => {
+  if (e.key === 'Escape' && vid) return showLibrary(false);
+  if (!$('#library').hidden || e.target.closest('input, button')) return;
+  if (e.key === ' ') { e.preventDefault(); toggle(); }
+  if (e.key === 'ArrowLeft') v.currentTime -= 5;
+  if (e.key === 'ArrowRight') v.currentTime += 5;
+});
+
+const stepAt = (t, kinds) => st?.plan.find(s => kinds.includes(s.action) && t >= s.start && t < s.end);
+const stepKey = s => `${s.start}-${s.end}`;
+const names = ids => [...new Set(ids)].map(id => taxonomy[id]?.label || id).join(', ');
+
+function tick() {
+  if (st && sift && !v.paused) {
+    const t = v.currentTime;
+    const skip = stepAt(t, ['skip']);
+    if (skip && stepKey(skip) !== overrideSkip && skip.end - t > 0.3) {
+      v.currentTime = skip.end;
+      flash(`Skipped ${fmt(skip.end - skip.start)} of ${names(skip.triggers)}`, 'skip');
+    }
+    // playing the SAM Audio render: its "filter" sections are already clean, so only plain mutes remain
+    const cleaned = sam.url && v.getAttribute('src') === sam.url;
+    const mute = stepAt(t + 0.05, cleaned ? ['mute'] : ['mute', 'filter']);
+    setGain(mute ? (remover === 'duck' ? 0.18 : 0) : 1);  // duck = −15 dB
+    const removed = cleaned && stepAt(t, ['filter']);
+    if (mute) flash(`${remover === 'duck' ? 'Lowering' : 'Muting'} ${names(mute.triggers)}`, 'mute', true);
+    else if (removed) flash(`Removing ${names(removed.triggers)}`, 'mute', true);
+  } else setGain(1);
+  movePlayhead();
+  requestAnimationFrame(tick);
+}
+
+let gainTarget = 1;
+function setGain(x) {
+  if (!audio || x === gainTarget) return;
+  gainTarget = x;
+  audio.gain.gain.setTargetAtTime(x, audio.ctx.currentTime, 0.03);
+}
+
+let badgeTimer = null;
+function flash(text, kind, sticky) {
+  const b = $('#badge');
+  b.lastElementChild.textContent = text;
+  b.className = `badge show ${kind}`;
+  clearTimeout(badgeTimer);
+  badgeTimer = setTimeout(() => b.classList.remove('show'), sticky ? 400 : 2500);
+}
+
+// Your cut / Original: same moment, with or without TriggerSift
+function setAb(on) {
+  sift = on;
+  $('#abCut').setAttribute('aria-pressed', on);
+  $('#abOrig').setAttribute('aria-pressed', !on);
+  updateSource();
+  if (st) renderPlot();
+}
+$('#abCut').onclick = () => setAb(true);
+$('#abOrig').onclick = () => setAb(false);
+
+function updateSource() {
+  if (!vid) return;
+  const url = sift && sam.url ? sam.url : original();
+  if (v.getAttribute('src') === url) return;
+  const t = v.currentTime, playing = !v.paused;
+  v.src = url;
+  v.addEventListener('loadedmetadata', () => { v.currentTime = t; if (playing) v.play(); }, {once: true});
+}
+
+// SAM Audio removes the short dislikes; until its render is ready they are muted
+async function ensureSam() {
+  if (!isSam() || !analysisDone() || !vid) return;
+  const filters = st.plan.filter(s => s.action === 'filter');
+  const sig = JSON.stringify([vid, detector, remover, filters.map(s => [s.start, s.end, s.triggers])]);
+  if (sig === sam.sig) return;
+  sam = {sig, url: null};
+  updateSource();
+  $('#work').textContent = '';
+  if (!filters.length) return;
+  const url = `/api/videos/${vid}/samaudio?model=${detector}&mode=${remover === 'sam-audio' ? 'mask' : 'rebuilt'}`;
+  for (;;) {
+    let job;
+    try { job = await api(url, {method: 'POST'}); }
+    catch { $('#work').textContent = 'Could not clean the audio. Muting instead.'; return; }
+    if (sam.sig !== sig) return;  // the plan or the video changed meanwhile: a newer request takes over
+    if (job.status === 'error') { $('#work').textContent = 'Could not clean the audio. Muting instead.'; return; }
+    if (job.status === 'done') { sam.url = `/api/videos/${vid}/samaudio/${job.key}/media`; break; }
+    $('#work').textContent = `Taking the sounds out… ${Math.round(job.progress * 100)}%`;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  $('#work').textContent = '';
+  updateSource();
+}
+
+// ---------- B: triggers ----------
+function seconds() {
+  const out = {};
+  for (const e of st?.events || []) if (e.confidence >= MIN_CONFIDENCE) out[e.trigger] = (out[e.trigger] || 0) + e.end - e.start;
+  return out;
+}
+
+function renderPrefs() {
+  const secs = seconds(), groups = {};
+  for (const [id, t] of Object.entries(taxonomy)) (groups[t.group] ||= []).push([id, t]);
+  const box = $('#groups'), top = box.scrollTop;
+  box.replaceChildren(...Object.entries(groups).map(([name, items]) => {
+    const g = document.createElement('div'); g.className = 'grp';
+    const h = document.createElement('h3'); h.textContent = name;
+    g.append(h, ...items.map(([id, t]) => trigRow(id, t, secs[id])));
+    return g;
+  }));
+  box.scrollTop = top;
+}
+
+function trigRow(id, t, secs) {
+  const p = prefOf(id);
+  const r = document.createElement('div');
+  r.className = `trig ${p}${analysisDone() && !secs ? ' absent' : ''}`;
+  r.title = t.covers;
+  const n = document.createElement('span'); n.className = 'nm'; n.textContent = t.label;
+  r.append(n);
+  if (secs) { const l = document.createElement('span'); l.className = 'len'; l.textContent = fmt(secs); r.append(l); }
+  for (const [k, word] of [['like', 'Love'], ['dislike', 'Avoid']]) {
+    const b = document.createElement('button');
+    b.className = `pick ${k}`; b.innerHTML = ICON[k]; b.title = word;
+    b.setAttribute('aria-label', `${word} ${t.label}`);
+    b.setAttribute('aria-pressed', p === k);
+    b.onclick = () => setPref(id, p === k ? 'neutral' : k);
+    r.append(b);
+  }
+  return r;
+}
+
+async function setPref(id, p) {
+  if (p === 'neutral') delete profile[id]; else profile[id] = p;
+  renderPrefs();
+  if (st) { renderPlot(); renderSummary(); }
+  profile = await api('/api/profile', {method: 'PUT', headers: {'Content-Type': 'application/json'},
+                                       body: JSON.stringify(profile)});
+  await refresh();
+}
+
+// ---------- C: graph ----------
+const pct = x => `${x / st.duration * 100}%`;
+
+function clearPlot() {
+  for (const s of ['#lanes', '#bands', '#veils', '#axis']) $(s).replaceChildren();
+  for (const s of ['#waveBase', '#wavePlayed']) { const c = $(s); c.getContext('2d').clearRect(0, 0, c.width, c.height); }
+  $('#summary').textContent = 'Listening to the video…';
+}
+
+// same sound again within half a second: one block
+function spans(evs) {
+  const out = [];
+  for (const e of evs.toSorted((a, b) => a.start - b.start)) {
+    const last = out.at(-1);
+    if (last && e.start - last[1] < 0.5) last[1] = Math.max(last[1], e.end);
+    else out.push([e.start, e.end]);
+  }
+  return out;
+}
+
+function lanes() {
+  const secs = seconds(), rank = {dislike: 0, like: 1, neutral: 2};
+  const ids = Object.keys(secs).filter(id => taxonomy[id])
+    .sort((a, b) => rank[prefOf(a)] - rank[prefOf(b)] || secs[b] - secs[a]);
+  const evs = st.events.filter(e => e.confidence >= MIN_CONFIDENCE);
+  const rows = ids.slice(0, MAX_LANES).map(id => ({id, label: taxonomy[id].label, pref: prefOf(id),
+                                                   spans: spans(evs.filter(e => e.trigger === id))}));
+  const rest = new Set(ids.slice(MAX_LANES));
+  if (rest.size) rows.push({label: `${rest.size} more ${rest.size > 1 ? 'sounds' : 'sound'}`, pref: 'neutral',
+                            spans: spans(evs.filter(e => rest.has(e.trigger)))});
+  return rows;
+}
+
+function renderPlot() {
+  $('#lanes').replaceChildren(...lanes().map(l => {
+    const row = document.createElement('div'); row.className = 'row lane';
+    const name = document.createElement('div'); name.className = 'name';
+    if (l.pref !== 'neutral') name.insertAdjacentHTML('beforeend', ICON[l.pref].replace(/width="\d+" height="\d+"/, 'width="10" height="10"'));
+    const s = document.createElement('span'); s.textContent = l.label; name.append(s);
+    const track = document.createElement('div'); track.className = 'track';
+    for (const [a, b] of l.spans) {
+      const k = document.createElement('div');
+      k.className = `blk ${l.pref}`; k.style.left = pct(a); k.style.width = pct(b - a);
+      track.append(k);
+    }
+    row.append(name, track);
+    return row;
+  }));
+  $('#bands').replaceChildren(...(sift ? st.plan : []).map(s => {
+    const b = document.createElement('div');
+    b.className = `band ${s.action}`; b.style.left = pct(s.start); b.style.width = pct(s.end - s.start);
+    return b;
+  }));
+  $('#veils').replaceChildren(...st.chunks.filter(c => c.status !== 'done').map(c => {
+    const b = document.createElement('div');
+    b.className = `veil ${c.status}`; b.style.left = pct(c.start); b.style.width = pct(Math.min(c.end, st.duration) - c.start);
+    return b;
+  }));
+  renderAxis();
+  drawWave();
+  fit();
+}
+
+function renderAxis() {
+  const D = st.duration;
+  const step = [5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600].find(s => D / s <= Math.min(8, $('#axis').clientWidth / 56)) || 7200;
+  const ticks = [];
+  for (let t = 0; t < D - step * 0.4; t += step) {
+    const s = document.createElement('span'); s.style.left = pct(t); s.textContent = fmt(t); ticks.push(s);
+  }
+  $('#axis').replaceChildren(...ticks);
+}
+
+function drawWave() {
+  if (!wave || !st) return;
+  const css = getComputedStyle(document.documentElement), col = k => css.getPropertyValue(k).trim();
+  const skip = col('--avoid'), removed = col('--removed');
+  const base = $('#waveBase'), W = base.clientWidth, H = base.clientHeight, dpr = devicePixelRatio || 1;
+  const n = Math.floor(W / 3);
+  for (const [c, dim] of [[base, true], [$('#wavePlayed'), false]]) {
+    c.width = W * dpr; c.height = H * dpr;
+    const g = c.getContext('2d');
+    g.scale(dpr, dpr);
+    for (let i = 0; i < n; i++) {
+      const a = Math.floor(i / n * wave.length), b = Math.max(a + 1, Math.floor((i + 1) / n * wave.length));
+      const h = Math.max(1.5, Math.max(...wave.slice(a, b)) * (H - 4));
+      const s = sift && stepAt((i + .5) / n * st.duration, ['skip', 'filter', 'mute']);
+      g.fillStyle = !s ? (dim ? '#5f574c' : col('--ink')) : s.action === 'skip' ? skip : removed;
+      g.globalAlpha = !s ? 1 : s.action === 'skip' ? (dim ? .28 : .4) : (dim ? .6 : 1);
+      g.fillRect(i * 3, (H - h) / 2, 2, h);
+    }
+  }
+  movePlayhead();
+}
+
+function movePlayhead() {
+  const f = st ? Math.min(1, v.currentTime / st.duration) : 0;
+  $('#ph').style.left = `${f * 100}%`;
+  $('#ph').hidden = !st;
+  $('#wavePlayed').style.clipPath = `inset(0 ${(1 - f) * 100}% 0 0)`;
+  $('#now').textContent = fmt(v.currentTime || 0);
+}
+
+function renderSummary() {
+  const box = $('#summary');
+  const done = st.chunks.filter(c => c.status === 'done').length, n = st.chunks.length;
+  if (done < n && !analysisDone()) { box.textContent = `Listening to the video… ${done} of ${n} minutes`; return; }
+  if (!Object.values(profile).includes('dislike')) { box.textContent = 'Choose a sound to avoid and it leaves your cut.'; return; }
+  if (!st.plan.length) { box.textContent = 'None of the sounds you avoid are in this video.'; return; }
+  const skip = st.plan.filter(s => s.action === 'skip'), soft = st.plan.filter(s => s.action !== 'skip');
+  const skipped = skip.reduce((a, s) => a + s.end - s.start, 0);
+  const verb = isSam() ? 'removes' : 'lowers', one = soft.length === 1 ? 'moment' : 'moments';
+  const parts = [];
+  if (skip.length) parts.push(['skips ', fmt(skipped)]);
+  if (soft.length) parts.push([`${verb} `, `${soft.length} ${one}`]);
+  box.replaceChildren('Your cut ');
+  parts.forEach(([w, x], i) => {
+    const b = document.createElement('b'); b.textContent = x;
+    box.append(i ? ` and ${w}` : w, b);
+  });
+  box.append('.');
+}
+
+// hover: one readout of everything at that moment; click: go there
+function timeAt(e) {
+  const r = $('#over').getBoundingClientRect();
+  return (e.clientX - r.left) / r.width * st.duration;
+}
+$('#plot').addEventListener('pointermove', e => {
+  const tip = $('#tip'), t = st && timeAt(e);
+  if (!st || t < 0 || t > st.duration) { tip.style.display = 'none'; $('#cross').style.display = 'none'; return; }
+  $('#cross').style.display = 'block'; $('#cross').style.left = pct(t);
+  const time = document.createElement('b'); time.textContent = fmt(t);
+  tip.replaceChildren(time);
+  const s = sift && stepAt(t, ['skip', 'filter', 'mute']);
+  if (s) {
+    const a = document.createElement('span'); a.className = 'act';
+    a.textContent = s.action === 'skip' ? 'Skipped in your cut' : isSam() ? 'Removed in your cut' : 'Lowered in your cut';
+    tip.append(a);
+  }
+  const here = [...new Set(st.events.filter(x => x.confidence >= MIN_CONFIDENCE && t >= x.start && t < x.end).map(x => x.trigger))];
+  for (const id of here) {
+    const d = document.createElement('div'), k = document.createElement('i');
+    k.className = prefOf(id);
+    d.append(k, taxonomy[id]?.label || id);
+    tip.append(d);
+  }
+  tip.style.display = 'block';
+  const w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = `${Math.min(e.clientX + 14, innerWidth - w - 8)}px`;
+  tip.style.top = `${Math.max(8, e.clientY - h - 12)}px`;
+});
+$('#plot').addEventListener('pointerleave', () => { $('#tip').style.display = 'none'; $('#cross').style.display = 'none'; });
+$('#plot').addEventListener('click', e => {
+  if (!st) return;
+  const t = Math.max(0, Math.min(st.duration, timeAt(e)));
+  const s = stepAt(t, ['skip']);
+  overrideSkip = s ? stepKey(s) : null;  // clicked into a skipped part: the user wants to hear it
+  v.currentTime = t;
+});
+
+// the video takes the height the graph leaves it; the triggers get the width the video leaves them
+function fit() {
+  if (innerWidth <= 900) return;
+  const room = $('#room'), h = room.clientHeight - 14 - 48;
+  $('#screen').style.width = `${Math.min(h * 16 / 9, room.clientWidth - 48 - 22 - 340)}px`;
+}
+let resizeTimer = null;
+addEventListener('resize', () => {
+  fit();
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(drawWave, 100);
+});
+
+init();
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

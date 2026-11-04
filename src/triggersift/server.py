@@ -16,7 +16,7 @@ from fastapi import Body, FastAPI, HTTPException
 from fastapi.responses import FileResponse
 
 from .detect import DEFAULT_MODEL, DETECTORS, Chunk, analyze_chunk, cached_chunk, chunks, duration, run_dir
-from . import effects, samaudio
+from . import effects, preview, samaudio
 from .labeling import make_routes
 from .plan import plan
 from .profile import Pref, Profile, category_labels, taxonomy
@@ -170,19 +170,35 @@ def index():
     return FileResponse(Path(__file__).with_name("web") / "index.html")
 
 
+@app.get("/demo")
+def demo():
+    return FileResponse(Path(__file__).with_name("web") / "demo.html")
+
+
 @app.get("/api/videos")
 def videos():
     out = []
     for vid, p in _videos().items():
         a = _analyses.get((vid, DEFAULT_MODEL))
         out.append({"id": vid, "name": p.stem, "analyzed": len(a.events) if a else None,
-                    "chunks": len(a.chunks) if a else None})
+                    "chunks": len(a.chunks) if a else None,
+                    "duration": preview.length(p), "added": p.stat().st_mtime})
     return out
 
 
 @app.get("/api/videos/{vid}/media")
 def media(vid: str):
     return FileResponse(_video(vid))  # Starlette serves Range requests, so seeking works
+
+
+@app.get("/api/videos/{vid}/thumb")
+def thumb(vid: str):
+    return FileResponse(preview.thumb(_video(vid), vid))
+
+
+@app.get("/api/videos/{vid}/wave")
+def wave(vid: str):
+    return preview.wave(_video(vid), vid)
 
 
 @app.get("/api/effects")
