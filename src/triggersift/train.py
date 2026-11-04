@@ -11,9 +11,7 @@ from collections import Counter
 from datetime import date
 
 import numpy as np
-from sklearn.linear_model import LogisticRegression
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import StandardScaler
+import torch
 
 from .bank_eval import OUT, PE_THRESHOLD, auc, pe_embeds, pe_scores, prf, truth
 from .labeling import CLIPS, load
@@ -33,6 +31,39 @@ def text_features(emb: np.ndarray) -> np.ndarray:
     return np.concatenate([p.mean(axis=0), p.max(axis=0)])
 
 
+def fit_all(Xtr, Ytr, Wtr, C, active) -> tuple[torch.Tensor, ...]:
+    """Balanced L2 logistic regressions for all categories at once on the GPU: same objective as scikit-learn's
+    LogisticRegression(C, class_weight="balanced") per category, which took hours for ~1,900 fits on 700 clips + FSD50K.
+    Returns (mean, std, weights, bias) of the standardised model."""
+    x = torch.as_tensor(Xtr, dtype=torch.float32, device="cuda")
+    y = torch.as_tensor(Ytr[:, active], dtype=torch.float32, device="cuda")
+    s = torch.as_tensor(Wtr, dtype=torch.float32, device="cuda")[:, None]
+    mean, std = x.mean(0), x.std(0, unbiased=False).clamp_min(1e-6)
+    x = (x - mean) / std
+    n, pos = len(y), y.sum(0)
+    cw = torch.where(y > 0, n / (2 * pos), n / (2 * (n - pos))) * s * C
+    w = torch.zeros(x.shape[1], y.shape[1], device="cuda", requires_grad=True)
+    b = torch.zeros(y.shape[1], device="cuda", requires_grad=True)
+    opt = torch.optim.LBFGS([w, b], max_iter=500, history_size=20, tolerance_grad=1e-4, tolerance_change=1e-9,
+                            line_search_fn="strong_wolfe")
+
+    def closure():
+        opt.zero_grad()
+        loss = (cw * torch.nn.functional.binary_cross_entropy_with_logits(x @ w + b, y, reduction="none")).sum()
+        loss = loss + 0.5 * (w * w).sum()
+        loss.backward()
+        return loss
+
+    opt.step(closure)
+    return mean, std, w.detach(), b.detach()
+
+
+def predict(model, X) -> np.ndarray:
+    mean, std, w, b = model
+    x = torch.as_tensor(X, dtype=torch.float32, device="cuda")
+    return torch.sigmoid((x - mean) / std @ w + b).cpu().numpy()
+
+
 def oof(X, Y, Z, vid, C, min_pos=3, extra=None, ours=True, w_ours=1.0):
     """Out-of-video probabilities [clips, cats]; zero-shot where a training fold lacks positives/negatives.
 
@@ -47,14 +78,11 @@ def oof(X, Y, Z, vid, C, min_pos=3, extra=None, ours=True, w_ours=1.0):
         if extra is not None:
             Xs.append(extra[0]); Ys.append(extra[1]); Ws.append(np.ones(len(extra[0])))
         Xtr, Ytr, Wtr = np.vstack(Xs), np.vstack(Ys), np.concatenate(Ws)
-        for j in range(Y.shape[1]):
-            if Ytr[:, j].sum() < min_pos or (~Ytr[:, j]).sum() < min_pos:
-                P[test, j] = Z[test, j]
-                fallback[j] += int(test.sum())
-                continue
-            model = make_pipeline(StandardScaler(), LogisticRegression(C=C, class_weight="balanced", max_iter=3000))
-            model.fit(Xtr, Ytr[:, j], logisticregression__sample_weight=Wtr)
-            P[test, j] = model.predict_proba(X[test])[:, 1]
+        ok = (Ytr.sum(0) >= min_pos) & ((~Ytr).sum(0) >= min_pos)
+        for j in np.flatnonzero(~ok):
+            P[test, j] = Z[test, j]
+            fallback[j] += int(test.sum())
+        P[np.ix_(test, ok)] = predict(fit_all(Xtr, Ytr, Wtr, C, ok), X[test])
     return P, fallback
 
 
@@ -65,11 +93,24 @@ def summary(P, Y, thr):
     return aucs, f1s
 
 
+def save_heads(X, Y, Xf, Yf, cats, C) -> None:
+    """The shipped detector = variant H trained on every clip: head 0 on yours, head 1 on FSD50K + yours (x10)."""
+    from .pe_frame import HEADS
+    ok = np.ones(len(cats), bool)
+    a = fit_all(X, Y, np.ones(len(X)), C, ok)
+    g = fit_all(np.vstack([X, Xf]), np.vstack([Y, Yf]), np.r_[np.full(len(X), 10.0), np.ones(len(Xf))], C, ok)
+    arrays = {f"{name}{i}": t.cpu().numpy() for i, m in enumerate((a, g)) for name, t in zip("msWb", m)}
+    np.savez_compressed(HEADS, cats=np.array(cats), **arrays)
+    print(f"saved {HEADS}: {len(cats)} classes", flush=True)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--min", type=int, default=10)
     ap.add_argument("--C", type=float, default=0.05, help="inverse regularization: smaller = simpler model")
     ap.add_argument("--fsd", action="store_true", help="add FSD50K clips (python -m triggersift.fsd50k first)")
+    ap.add_argument("--save", action="store_true", help="with --fsd: also train on everything and save the heads "
+                                                         "the app uses (pe-a-frame-trained)")
     a = ap.parse_args()
 
     clips = [c for c in load() if (CLIPS / f"{c['id']}.mp4").exists() and c["triggers"]]
@@ -90,7 +131,10 @@ def main() -> None:
         "B zero-shot phrase scores": (T, 1.0),
         "C both": (np.hstack([X, T]), a.C),
     }
-    results = {name: oof(Xv, Y, Z, vid, C) for name, (Xv, C) in variants.items()}
+    results = {}
+    for name, (Xv, C) in variants.items():
+        results[name] = oof(Xv, Y, Z, vid, C)
+        print("done:", name, flush=True)
     if a.fsd:
         from . import fsd50k
         rows = fsd50k.select()
@@ -100,6 +144,11 @@ def main() -> None:
         results["E FSD50K only"] = oof(X, Y, Z, vid, a.C, extra=(Xf, Yf), ours=False)
         results["F FSD50K + yours (x1)"] = oof(X, Y, Z, vid, a.C, extra=(Xf, Yf))
         results["G FSD50K + yours (x10)"] = oof(X, Y, Z, vid, a.C, extra=(Xf, Yf), w_ours=10.0)
+        # H: yours alone is best on tapping/crunch, with FSD50K on liquid/crinkling: average the two
+        results["H average of A and G"] = ((results["A raw fingerprint"][0] + results["G FSD50K + yours (x10)"][0]) / 2,
+                                           Counter())
+        if a.save:
+            save_heads(X, Y, Xf, Yf, cats, a.C)
     # D: average of B's trained probability and the plain zero-shot category score
     results["D B averaged with zero-shot"] = ((results["B zero-shot phrase scores"][0] + Z) / 2, Counter())
 

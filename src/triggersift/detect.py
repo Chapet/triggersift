@@ -126,7 +126,8 @@ def _muse_chunk(path: Path, start: float, length: float, model: str) -> tuple[li
 # id → (label for the UI, where it runs)
 DETECTORS = {
     "muse-wonder-1.0": ("Muse Wonder · Meta API · ~$0.07/min", "api"),
-    "pe-a-frame-large": ("PE-A-Frame · Meta, local GPU · free", "local"),
+    "pe-a-frame-trained": ("PE-A-Frame trained on our labels · Meta, local GPU · free", "local"),
+    "pe-a-frame-large": ("PE-A-Frame zero-shot · Meta, local GPU · free", "local"),
     "gemini": ("Gemini · Google API", "api"),
 }
 
@@ -134,7 +135,7 @@ DETECTORS = {
 def detect_chunk(path: Path, start: float, length: float, model: str) -> tuple[list[Event], dict]:
     if model.startswith("pe-a-frame"):
         from . import pe_frame  # torch: only loaded when this detector is used
-        return pe_frame.detect_chunk(path, start, length)
+        return pe_frame.detect_chunk(path, start, length, trained=model == "pe-a-frame-trained")
     if model.startswith("gemini"):
         from . import gemini
         return gemini.detect_chunk(path, start, length)
@@ -172,6 +173,9 @@ def chunks(total: float, chunk_s: float = 60.0) -> list[Chunk]:
 def run_dir(path: Path, model: str = DEFAULT_MODEL, chunk_s: float = 60.0) -> Path:
     """Cache folder for one (video, model, chunk length, prompt version): editing the prompt re-runs detection."""
     version = hashlib.sha1((_prompt(chunk_s, []) + json.dumps(_schema()) + str(FRAMES_PER_CHUNK)).encode()).hexdigest()[:8]
+    if model == "pe-a-frame-trained":  # retraining re-runs detection too
+        from .pe_frame import HEADS
+        version += "-" + hashlib.sha1(HEADS.read_bytes()).hexdigest()[:6]
     run = CACHE / f"{_file_id(path)}-{model}-{chunk_s:g}-{version}"
     run.mkdir(parents=True, exist_ok=True)
     return run

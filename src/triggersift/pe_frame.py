@@ -19,6 +19,8 @@ VENDOR = Path(__file__).resolve().parents[3] / "vendor" / "perception_models"
 MODEL = "pe-a-frame-large"
 SR = 48_000
 WINDOW_S = 15.0  # audio per forward pass; 30 s peaked at ~7 GB of GPU memory
+HEADS = Path(__file__).with_name("trained_heads.npz")  # small classifiers on the embeddings, from train.py --save
+TRAINED_WINDOW_S = 5.0  # the labeled clips are ~5 s, so the classifiers judge 5 s around each second
 
 
 def _import_pe():
@@ -165,19 +167,44 @@ def category_events(probs: np.ndarray, hop: float, ids: list[str], offset: float
     return sorted(events, key=lambda e: e.start)
 
 
-def detect_chunk(path: Path, start: float, length: float) -> tuple[list[Event], dict]:
+@cache
+def _heads() -> tuple[list[str], list[tuple[np.ndarray, ...]]]:
+    z = np.load(HEADS)
+    return list(z["cats"]), [tuple(z[f"{n}{i}"] for n in "msWb") for i in range(2)]
+
+
+def trained_probs(emb: np.ndarray, hop: float) -> tuple[np.ndarray, list[str]]:
+    """Probabilities [seconds, classes]: for each second, the same fingerprint as in training (average and peak of
+    the embeddings) over the 5 s around it, through both trained heads, averaged."""
+    cats, heads = _heads()
+    per_s, half = round(1 / hop), round(TRAINED_WINDOW_S / 2 / hop)
+    feats = []
+    for c in range(per_s // 2, len(emb), per_s):
+        w = emb[max(0, c - half):c + half]
+        feats.append(np.concatenate([w.mean(axis=0), w.max(axis=0)]))
+    x = np.stack(feats)
+    return np.mean([1 / (1 + np.exp(-((x - m) / s @ W + b))) for m, s, W, b in heads], axis=0), cats
+
+
+def detect_chunk(path: Path, start: float, length: float, trained: bool = False) -> tuple[list[Event], dict]:
     import time
     t0 = time.monotonic()
     ids, ph = phrases()
     audio = load_audio(path, start, length)
     with _gpu:
         try:
-            probs, hop = frame_probs(audio, ph)
+            emb, hop = frame_embeds(audio)
+            if not trained:
+                probs = probs_from_embeds(emb, ph)
         finally:
             import torch
             torch.cuda.empty_cache()  # hand memory back between chunks
-    return (category_events(probs, hop, ids, start),
-            {"seconds": round(time.monotonic() - t0, 2), "usage": None, "model": MODEL})
+    if trained:
+        probs, cats = trained_probs(emb, hop)
+        events = category_events(probs, 1.0, cats, start, threshold=0.5, min_s=1.0, gap_s=2.0)
+    else:
+        events = category_events(probs, hop, ids, start)
+    return events, {"seconds": round(time.monotonic() - t0, 2), "usage": None, "model": MODEL}
 
 
 def unload() -> None:

@@ -148,7 +148,7 @@ def _detector_status(model: str) -> str | None:
 
 @app.get("/api/detectors")
 def detectors():
-    return [{"id": m, "label": label, "default": m == DEFAULT_MODEL, "unavailable": _detector_status(m)}
+    return [{"id": m, "label": label, "default": m == "pe-a-frame-trained", "unavailable": _detector_status(m)}
             for m, (label, _) in DETECTORS.items()]
 
 
