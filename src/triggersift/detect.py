@@ -126,13 +126,29 @@ def _muse_chunk(path: Path, start: float, length: float, model: str) -> tuple[li
 # id → (label for the UI, where it runs)
 DETECTORS = {
     "muse-wonder-1.0": ("Muse Wonder · Meta API · ~$0.07/min", "api"),
+    "combined": ("Combined: PE-A-Frame trained + Muse Wonder · ~$0.07/min", "api"),
     "pe-a-frame-trained": ("PE-A-Frame trained on our labels · Meta, local GPU · free", "local"),
     "pe-a-frame-large": ("PE-A-Frame zero-shot · Meta, local GPU · free", "local"),
     "gemini": ("Gemini · Google API", "api"),
 }
 
 
+# Each class goes to the detector that was better on it (F1 on 97 clips of 4 videos, 2026-11-04): Wonder sees the
+# object and hands, so it wins on these; the trained PE-A-Frame wins on background, breathing, crinkling, clicks.
+WONDER_CLASSES = {"tapping_soft", "tapping_sharp", "brushing", "rubbing", "liquid"}
+
+
+def _combined_chunk(path: Path, start: float, length: float) -> tuple[list[Event], dict]:
+    from . import pe_frame
+    local, _ = pe_frame.detect_chunk(path, start, length, trained=True)
+    wonder, stats = _muse_chunk(path, start, length, "muse-wonder-1.0")
+    events = [e for e in local if e.trigger not in WONDER_CLASSES] + [e for e in wonder if e.trigger in WONDER_CLASSES]
+    return sorted(events, key=lambda e: e.start), stats
+
+
 def detect_chunk(path: Path, start: float, length: float, model: str) -> tuple[list[Event], dict]:
+    if model == "combined":
+        return _combined_chunk(path, start, length)
     if model.startswith("pe-a-frame"):
         from . import pe_frame  # torch: only loaded when this detector is used
         return pe_frame.detect_chunk(path, start, length, trained=model == "pe-a-frame-trained")
@@ -173,7 +189,7 @@ def chunks(total: float, chunk_s: float = 60.0) -> list[Chunk]:
 def run_dir(path: Path, model: str = DEFAULT_MODEL, chunk_s: float = 60.0) -> Path:
     """Cache folder for one (video, model, chunk length, prompt version): editing the prompt re-runs detection."""
     version = hashlib.sha1((_prompt(chunk_s, []) + json.dumps(_schema()) + str(FRAMES_PER_CHUNK)).encode()).hexdigest()[:8]
-    if model == "pe-a-frame-trained":  # retraining re-runs detection too
+    if model in ("pe-a-frame-trained", "combined"):  # retraining re-runs detection too
         from .pe_frame import HEADS
         version += "-" + hashlib.sha1(HEADS.read_bytes()).hexdigest()[:6]
     run = CACHE / f"{_file_id(path)}-{model}-{chunk_s:g}-{version}"
