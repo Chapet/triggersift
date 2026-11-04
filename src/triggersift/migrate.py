@@ -34,7 +34,7 @@ OLD = {
     "mic_texture": "brushing",
     "clicking": "clicks",
     "cutting": "crunch",
-    "ambient": {"rain": "nature", "thunder": "nature", "fire": "nature", "outside": "nature", "music": "music",
+    "ambient": {"outside": "handling", "music": "music",
                 "room": "handling", "*": "steady_noise"},
     "noise": {"breathing": "breathing", "*": "handling"},
 }
@@ -42,7 +42,7 @@ OLD = {
 OLD_CATEGORY = {cat: sorted({v for v in (m.values() if isinstance(m, dict) else [m])}) for cat, m in OLD.items()}
 
 
-RENAMED = {"mic_contact": "brushing"}  # v2 classes merged later (2026-11-03)
+RENAMED = {"mic_contact": "brushing", "nature": "steady_noise"}  # v2 classes merged later (2026-11-03)
 
 
 def convert(tid: str) -> str | None:

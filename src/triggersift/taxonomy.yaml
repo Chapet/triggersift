@@ -2,7 +2,8 @@
 # v1 had ~75 object-level labels (tapping on wood / glass / leather…) with 0–5 examples each: too fine to label or
 # learn, and likes/dislikes follow the sound anyway. v1 is kept in ../taxonomy.v1-objects.yaml; `migrate.py` maps
 # old labels to these classes. 2026-11-03: mic_contact merged into brushing (user: same sound, only louder;
-# loudness is the effects' job, not a class).
+# loudness is the effects' job, not a class);
+# nature split: rain / fire / thunder → steady_noise, outside (sirens, traffic) → handling.
 #
 # Each class is its own category (id without a dot). `group` only orders/heads them in the UI.
 # `sound` = SAM Audio / PE-A-Frame text prompt. `covers` = what goes in it, shown to help labeling.
@@ -39,7 +40,7 @@ brushing:
   group: Friction
   label: Brushing
   sound: soft brush strokes
-  covers: "hair brushing, lens brushing, makeup brushes, finger fluttering, swishes; also brushing / scratching right on the mic (fluffy cover, foam), even when loud"
+  covers: "hair brushing, lens brushing, makeup brushes, finger fluttering, swishes, sprays (pshh); also brushing / scratching right on the mic (fluffy cover, foam), even when loud"
 crinkling:
   group: Friction
   label: Crinkling
@@ -79,13 +80,8 @@ breathing:
 steady_noise:
   group: Background
   label: Steady noise
-  sound: steady fan noise and electrical hum
-  covers: "fan, AC, air purifier, electrical hum / buzz, hiss, white noise"
-nature:
-  group: Background
-  label: Nature & outside
-  sound: rain and nature sounds
-  covers: "rain, thunder, fire crackling, birds, traffic, outside"
+  sound: steady background noise like a fan, rain or electrical hum
+  covers: "fan, AC, air purifier, electrical hum / buzz, hiss, white noise, rain, fire, thunder, electric clippers / shaver buzz"
 music:
   group: Background
   label: Music
@@ -97,4 +93,4 @@ handling:
   group: Accidents
   label: Unwanted noises
   sound: muffled thud and bump
-  covers: "accidental one-off knocks: thuds, desk / mic bumps, chair creaks, room noise (footsteps, doors, pets), spikes, crackle"
+  covers: "accidental one-off noises: thuds, desk / mic bumps, chair creaks, room noise (footsteps, doors, pets), outside (sirens, traffic, dogs), spikes, crackle"

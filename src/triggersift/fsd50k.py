@@ -28,7 +28,7 @@ MAP = {
     "Chewing_and_mastication": "mouth",
     "Whispering": "whisper", "Male_speech_and_man_speaking": "spoken", "Female_speech_and_woman_speaking": "spoken",
     "Breathing": "breathing", "Sigh": "breathing", "Thump_and_thud": "handling",
-    "Rain": "nature", "Thunder": "nature", "Fire": "nature",
+    "Rain": "steady_noise", "Thunder": "steady_noise", "Fire": "steady_noise",
     "Mechanical_fan": "steady_noise", "Hiss": "steady_noise", "Buzz": "steady_noise",
     "Pour": "liquid", "Drip": "liquid", "Splash_and_splatter": "liquid", "Trickle_and_dribble": "liquid",
     "Gurgling": "liquid",
